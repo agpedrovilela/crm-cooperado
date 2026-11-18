@@ -1,5 +1,5 @@
 /* CRM do Cooperado: service worker (abre sem internet e guarda as fotos no aparelho) */
-const VERSAO = 'crm-v6-2';
+const VERSAO = 'crm-v6-3';
 const BASE = ['./', './index.html', './shim.js', './config.js', './manifest.webmanifest', './vendor/supabase.js', './vendor/jspdf.umd.min.js', './icons/icon-192.png', './icons/icon-512.png'];
 const FOTOS = 'crm-fotos', FONTES = 'crm-fontes', AUTH = 'crm-auth';
 

@@ -6,6 +6,7 @@
   const conf = window.CRM_CONFIG || {};
   let URL_SB = (conf.supabaseUrl || '').trim().replace(/\/+$/, '');
   let KEY = (conf.supabaseKey || conf.supabaseAnonKey || '').trim();
+  const soDominio = (u) => { try { const x = new URL(String(u).trim()); return x.origin; } catch (e) { return String(u || '').trim().replace(/\/+$/, ''); } };
   try {
     if (!URL_SB || !KEY) {
       const s = JSON.parse(localStorage.getItem('crm-config') || 'null');
@@ -13,6 +14,7 @@
     }
   } catch (e) {}
 
+  URL_SB = soDominio(URL_SB);
   window.__BLOB = './_blob/';
   const FOTOS = 'fotos';
   const hex = (n) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, '0')).join('');
@@ -38,7 +40,7 @@
       <div class="err" id="lg-e">${msg || ''}</div><button type="submit">Salvar</button></form>`;
       document.getElementById('lg-f').onsubmit = (ev) => {
         ev.preventDefault();
-        const u = document.getElementById('lg-u').value.trim().replace(/\/+$/, ''), k = document.getElementById('lg-k').value.trim();
+        const u = soDominio(document.getElementById('lg-u').value), k = document.getElementById('lg-k').value.trim();
         if (!/^https:\/\/.+/.test(u)) { document.getElementById('lg-e').textContent = 'A URL começa com https://'; return; }
         localStorage.setItem('crm-config', JSON.stringify({ url: u, key: k }));
         location.reload();
@@ -290,5 +292,6 @@
     });
   }
 
+  if (window.__RESET) return; /* a página vai recarregar com a versão nova */
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar); else iniciar();
 })();
