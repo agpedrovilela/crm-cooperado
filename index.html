@@ -11,9 +11,17 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<script src="config.js"></script>
+<script>
+/* Quando sai uma versão nova, apaga as cópias antigas do app guardadas no aparelho (não apaga fotos nem dados). */
+(function(){var B='20261122195302';try{var v=localStorage.getItem('crm-build'),forca=/[?&]limpar/.test(location.search);
+if(v===B&&!forca)return;localStorage.setItem('crm-build',B);if(v===null&&!forca)return;window.__RESET=true;
+var p=[];if(window.caches)p.push(caches.keys().then(function(ks){return Promise.all(ks.filter(function(k){return k.indexOf('crm-v')===0||k==='crm-auth'}).map(function(k){return caches.delete(k)}))}));
+if(navigator.serviceWorker)p.push(navigator.serviceWorker.getRegistrations().then(function(rs){return Promise.all(rs.map(function(r){return r.unregister()}))}));
+Promise.all(p).then(function(){location.replace(location.pathname+location.hash)},function(){location.replace(location.pathname+location.hash)});}catch(e){}})();
+</script>
+<script src="config.js?v=20261122195302"></script>
 <script src="vendor/supabase.js"></script>
-<script src="shim.js"></script>
+<script src="shim.js?v=20261122195302"></script>
 </head>
 <body>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -348,6 +356,12 @@ code{font-size:.82rem;background:var(--sunk);padding:1px 5px;border-radius:4px}
 .empty p{margin:0 0 12px;color:var(--muted);max-width:62ch}
 @media (prefers-reduced-motion:no-preference){.panel{animation:slide .18s ease-out}@keyframes slide{from{transform:translateX(24px);opacity:.6}}}
 
+/* ===== v7: embalagens, fazendas, visitas ===== */
+.emb-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) auto;gap:6px;margin-top:6px}
+.emb-sim{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:10px;padding:10px 12px;border-radius:10px;background:color-mix(in srgb,var(--leaf) 10%,var(--surface))}
+.emb-sim label{font-weight:600;font-size:.9rem}.emb-sim input{width:90px}.emb-sim b{flex:1 1 100%}
+.fz-h{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:4px 0 10px}.fz-h h3{display:flex;align-items:center;gap:6px;margin:0}
+.card.faz h3{margin:0 0 4px}
 /* ===== v6: áudio e backup ===== */
 .btn.mic{border-color:color-mix(in srgb,var(--crit) 40%,var(--line));color:var(--ink)}
 .btn.mic svg{color:var(--crit)}
@@ -685,13 +699,19 @@ function cultKey(s){const n=norm(s);if(!n)return null;const C=CAL();
   return null}
 const cropNome=l=>{const k=cultKey(l.cultura);return k?CAL()[k].nome:(l.cultura||'Cultura')};
 const cropCor=l=>{const k=cultKey(l.cultura);return k?CAL()[k].cor||'#7A8A82':'#7A8A82'};
-const lavNome=l=>cropNome(l)+(l.talhao?' · '+l.talhao:'');
+const lavNome=l=>cropNome(l)+(l.talhao?' · '+l.talhao:'')+(l._fz?' ('+l._fz+')':'');
+/* fazendas: produtor antigo sem lista vira uma fazenda só, a partir de propriedade, município e localização */
+function fazendas(p){if(Array.isArray(p.fazendas)&&p.fazendas.length)return p.fazendas;return [{id:'f1',nome:p.propriedade||'',municipio:p.municipio||'',lat:p.lat,lon:p.lon,area_ha:p.area_ha,_derivada:true}]}
+const fazDe=(p,l)=>{const fs=fazendas(p);return fs.find(f=>f.id===(l&&l.fazendaId))||fs[0]};
+const fzNomes=p=>(p.fazendas||[]).map(f=>f.nome).join(' ');
+const fzResumo=p=>{const fs=fazendas(p);return fs.length>1?fs.map(f=>f.nome).filter(Boolean).join(', '):p.propriedade};
+function mapsUrl(f){if(coordOk(f))return `https://www.google.com/maps/dir/?api=1&destination=${+f.lat},${+f.lon}`;const q=[f.nome,f.municipio].filter(Boolean).join(', ');return q?`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`:''}
 function lavouras(p){
   if(Array.isArray(p.lavouras))return p.lavouras;
   return (p.culturas||[]).map(c=>({id:'l'+(cultKey(c)||slug(c)).slice(0,12),cultura:c,_derivada:true}));
 }
 const areaTotal=p=>lavouras(p).reduce((s,l)=>s+(+l.area_ha||0),0);
-const plantasHa=l=>+l.esp_linha&&+l.esp_planta?10000/(+l.esp_linha*+l.esp_planta):0;
+const plantasHa=l=>{const el=+l.esp_linha;if(!el)return 0;if(+l.plantas_m>0)return +l.plantas_m*10000/el;return +l.esp_planta>0?10000/(el*+l.esp_planta):0};
 const ordM=(m,ini)=>((m-ini)%12+12)%12;
 function cropDef(l){
   const k=cultKey(l.cultura);const base=k?CAL()[k]:null;if(!base||!Array.isArray(base.fases)||!base.fases.length)return null;
@@ -848,22 +868,41 @@ function calcItem(it,ctx){
     case 'g/100 L':need(ctx.calda,'informe a calda');tot=d/1000*ctx.calda/100*A;u='kg';break;
     case 'mL/kg sem.':need(ctx.sem,'informe kg de semente/ha');tot=d/1000*ctx.sem*A;u='L';break;
     case 'g/kg sem.':need(ctx.sem,'informe kg de semente/ha');tot=d/1000*ctx.sem*A;u='kg';break;
-    case 'kg/planta':need(ctx.plantas,'informe o espaçamento da lavoura');tot=d*ctx.plantas*A;u='kg';break;
-    case 'g/planta':need(ctx.plantas,'informe o espaçamento da lavoura');tot=d/1000*ctx.plantas*A;u='kg';break;
+    case 'kg/planta':need(ctx.plantas,'informe espaçamento e população da lavoura');tot=d*ctx.plantas*A;u='kg';break;
+    case 'g/planta':need(ctx.plantas,'informe espaçamento e população da lavoura');tot=d/1000*ctx.plantas*A;u='kg';break;
     case 'g/m linear':need(ctx.mlin,'informe o espaçamento entre linhas');tot=d/1000*ctx.mlin*A;u='kg';break;
     default:return {...out,erro:'unidade sem cálculo'};
   }}catch(msg){return {...out,erro:msg}}
   const pr=out.prod;let emb=null,valor=null,obs=null;
   if(pr){const pu=pr.unidade||'L';let t2=null;
     if(u===pu)t2=tot;else if(u==='t'&&pu==='kg')t2=tot*1000;else if(u==='kg'&&pu==='t')t2=tot/1000;else obs=`produto vendido em ${pu}`;
-    if(t2!=null){if(+pr.embalagem>0)emb={n:Math.ceil(t2/+pr.embalagem-1e-9),tam:+pr.embalagem,u:pu};
-      if(+pr.preco>0)valor=(emb?emb.n*emb.tam:t2)*+pr.preco;}}
+    if(t2!=null){const es=embsDe(pr);if(es.length){emb=melhorMix(t2,es);emb.u=pu;valor=emb.valor}
+      if(valor==null&&+pr.preco>0)valor=(emb?emb.total:t2)*+pr.preco;}}
   return {...out,tot,u,emb,valor,obs};
 }
 function calcRec(r){const ctx=ctxRec(r);const itens=(r.itens||[]).filter(i=>i.produto).map(i=>({...i,...calcItem(i,ctx)}));
   const vs=itens.map(i=>i.valor).filter(v=>v!=null);return {ctx,itens,valor:vs.length?vs.reduce((a,b)=>a+b,0):null,completo:itens.length>0&&vs.length===itens.length}}
 const fmtQ=(t,u)=>nfmt(t,t<10?2:1)+' '+u;
-const embTxt=e=>e?`${e.n} × ${nfmt(e.tam)} ${e.u}`:'';
+const embTxt=e=>e&&e.itens&&e.itens.length?e.itens.map(i=>`${i.n} × ${nfmt(i.tam)} ${e.u}`).join(' + ')+(e.sobra>1e-6?` = ${nfmt(e.total)} ${e.u}, sobra ${nfmt(e.sobra,e.sobra<10?2:1)} ${e.u}`:''):'';
+/* embalagens do produto, da maior para a menor; preço da embalagem ou preço por unidade × tamanho */
+function embsDe(pr){const l=Array.isArray(pr.embalagens)&&pr.embalagens.length?pr.embalagens:(+pr.embalagem>0?[{tam:+pr.embalagem}]:[]);
+  return l.map(e=>{const tam=+e.tam;return {tam,preco:+e.preco>0?+e.preco:(+pr.preco>0?+pr.preco*tam:null)}}).filter(e=>e.tam>0).sort((a,b)=>b.tam-a.tam)}
+/* melhor combinação de embalagens: 1º menor sobra, 2º menor custo (se todas têm preço), 3º menos embalagens */
+function melhorMix(q,es){
+  const gcd=(a,b)=>{while(b){const r=a%b;a=b;b=r}return a};
+  const sz=es.map(e=>Math.max(1,Math.round(e.tam*1000)));const g=sz.reduce(gcd);const s=sz.map(x=>x/g);
+  const comPreco=es.every(e=>e.preco!=null);const M=Math.max(...s),iM=s.indexOf(M);
+  let T=Math.max(1,Math.ceil(q*1000/g-1e-6));const base=es.map(()=>0);const LIM=200000;
+  if(T+M>LIM){const k=Math.ceil((T+M-LIM)/M);base[iM]=k;T-=k*M}
+  const L=T+M,cost=new Float64Array(L).fill(Infinity),cnt=new Int32Array(L).fill(1e9),de=new Int16Array(L).fill(-1);cost[0]=0;cnt[0]=0;
+  for(let t=1;t<L;t++)for(let j=0;j<s.length;j++){const a=t-s[j];if(a<0||cost[a]===Infinity)continue;const c=cost[a]+(comPreco?es[j].preco:0),n=cnt[a]+1;
+    if(c<cost[t]-1e-9||(Math.abs(c-cost[t])<=1e-9&&n<cnt[t])){cost[t]=c;cnt[t]=n;de[t]=j}}
+  let t=T;while(t<L&&cost[t]===Infinity)t++;
+  const n=base.slice();for(let x=t;x>0;x-=s[de[x]])n[de[x]]++;
+  const itens=es.map((e,j)=>({n:n[j],tam:e.tam,preco:e.preco})).filter(i=>i.n>0);
+  const total=itens.reduce((a,i)=>a+i.n*i.tam,0);
+  return {itens,total,sobra:Math.max(0,total-q),nEmb:itens.reduce((a,i)=>a+i.n,0),valor:comPreco?itens.reduce((a,i)=>a+i.n*i.preco,0):null};
+}
 function itemCalcTxt(c){if(c.erro)return c.erro;return `total ${fmtQ(c.tot,c.u)}${c.emb?' · '+embTxt(c.emb):''}${c.valor!=null?' · '+brl(c.valor):''}${c.obs?' · '+c.obs:''}`}
 const valorRec=r=>stc(r)==='Vendida'&&+r.valor_vendido?+r.valor_vendido:(calcRec(r).valor||0);
 const oportunidades=()=>S.recs.filter(r=>r.status!=='Cancelada'&&['Em aberto','Orçamento enviado'].includes(stc(r)));
@@ -954,7 +993,7 @@ function emptyHTML(){
 }
 const tile=(v,l,o={})=>`<${o.href?`a href="${o.href}"`:'div'} class="tile ${o.c||''}"><span class="v">${v}</span><span class="l">${l}</span>${o.bar!=null?`<div class="meter ${o.barc||''}"><i style="width:${Math.max(0,Math.min(100,o.bar*100))}%"></i></div>`:''}${o.x?`<span class="x">${o.x}</span>`:''}</${o.href?'a':'div'}>`;
 function prodRow(p,sg,acts){
-  const sub=[p.propriedade,p.municipio].filter(Boolean).join(' · ');const ki=KI(p);
+  const sub=[fzResumo(p),p.municipio].filter(Boolean).join(' · ');const ki=KI(p);
   const ult=sg.sem!=null?`último contato há ${plural(sg.sem,'dia')}`:'sem contato registrado';
   const cs=[p.exemplo?'<span class="chip ex">Exemplo</span>':'',...sg.chips.map(x=>`<span class="chip ${x.c}">${esc(x.t)}</span>`),...lavouras(p).map(estChip),grpChip(ki.grupo)].filter(Boolean);
   const ch=cs.slice(0,5).join('')+(cs.length>5?`<span class="chip">+${cs.length-5}</span>`:'');
@@ -996,7 +1035,7 @@ function vHoje(){
 }
 function buscaHoje(){
   const q=norm($('#q-prod').value),box=$('#q-res');if(!q){box.hidden=true;box.innerHTML='';return}
-  const ps=[...S.prods.values()].filter(p=>norm([p.nome,p.apelido,p.propriedade,p.municipio,p.codigo].join(' ')).includes(q)).sort((a,b)=>a.nome.localeCompare(b.nome,'pt'));
+  const ps=[...S.prods.values()].filter(p=>norm([p.nome,p.apelido,p.propriedade,fzNomes(p),p.municipio,p.codigo].join(' ')).includes(q)).sort((a,b)=>a.nome.localeCompare(b.nome,'pt'));
   box.hidden=false;box.className='list';
   box.innerHTML=ps.length?ps.slice(0,6).map(p=>prodRow(p,sinais(p),`<button class="btn sm pri w" data-act="relatorio" data-id="${esc(p.id)}">Relatório</button>`)).join('')+(ps.length>6?`<p class="box-e sm">Mais ${ps.length-6}. Continue digitando para filtrar.</p>`:''):'<p class="box-e">Ninguém encontrado.</p>';
 }
@@ -1126,7 +1165,7 @@ function vCarteira(){
 function listaCarteira(){
   const q=norm(CF.q);let ps=[...S.prods.values()].map(p=>[p,sinais(p)]);
   const opIds=new Set(oportunidades().map(r=>r.produtorId));
-  if(q)ps=ps.filter(([p])=>norm([p.nome,p.apelido,p.propriedade,p.municipio,p.codigo].join(' ')).includes(q));
+  if(q)ps=ps.filter(([p])=>norm([p.nome,p.apelido,p.propriedade,fzNomes(p),p.municipio,p.codigo].join(' ')).includes(q));
   if(CF.cult)ps=ps.filter(([p])=>lavouras(p).some(l=>(cultKey(l.cultura)||slug(l.cultura))===CF.cult));
   if(CF.grupo)ps=ps.filter(([p])=>KI(p).grupo===CF.grupo);
   if(CF.abc)ps=ps.filter(([p])=>KI(p).abc===CF.abc);
@@ -1232,7 +1271,7 @@ function listaProdutos(){
   let ps=[...S.produtos].sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt'));
   if(q)ps=ps.filter(p=>norm([p.nome,p.principio_ativo,p.fabricante,p.alvos].join(' ')).includes(q));if(PF.cat)ps=ps.filter(p=>p.categoria===PF.cat);
   $('#pf-list').innerHTML=ps.length?`<div class="tbl-wrap"><table><thead><tr><th>Produto</th><th>Categoria</th><th>Embalagem</th><th class="n">Preço ref.</th><th>Dose padrão</th><th>Culturas</th><th class="n">Recomendado</th><th class="n">Vendido</th><th></th></tr></thead><tbody>
-   ${ps.map(p=>{const u=uso[p.id]||{n:0,vend:0};return `<tr><td><b>${esc(p.nome)}</b>${p.exemplo?' <span class="chip ex">Exemplo</span>':''}${p.ativo===false?' <span class="chip">inativo</span>':''}<div class="muted sm">${esc([p.principio_ativo,p.fabricante].filter(Boolean).join(' · '))}</div>${p.alvos?`<div class="sm">${esc(p.alvos)}</div>`:''}</td><td>${esc(p.categoria||'')}</td><td>${p.embalagem?nfmt(p.embalagem)+' '+esc(p.unidade||''):''}</td><td class="n">${p.preco?brl2(p.preco)+'/'+esc(p.unidade||''):'<span class="muted">sem preço</span>'}</td><td>${p.dose_padrao?esc(p.dose_padrao)+' '+esc(p.dose_unidade||''):''}${p.carencia?`<div class="muted sm">carência ${esc(p.carencia)} d</div>`:''}</td><td>${esc((p.culturas||[]).join(', '))}</td><td class="n">${u.n?u.n+'×':''}${u.ult?`<div class="muted sm">${fmtCurto(u.ult)}</div>`:''}</td><td class="n">${u.vend?brlC(u.vend):''}</td><td class="n"><button class="btn sm ghost w" data-act="prod-edit" data-id="${esc(p.id)}">Editar</button></td></tr>`}).join('')}</tbody></table></div>`:`<div class="notice">${S.produtos.length?'Nenhum produto com esses filtros.':'Nenhum produto cadastrado. Cadastre os produtos que você mais recomenda, com dose padrão, embalagem e preço de referência.'}</div>`;
+   ${ps.map(p=>{const u=uso[p.id]||{n:0,vend:0};return `<tr><td><b>${esc(p.nome)}</b>${p.exemplo?' <span class="chip ex">Exemplo</span>':''}${p.ativo===false?' <span class="chip">inativo</span>':''}${p.auto&&!embsDe(p).length?' <span class="chip warn">novo: complete</span>':''}<div class="muted sm">${esc([p.principio_ativo,p.fabricante].filter(Boolean).join(' · '))}</div>${p.alvos?`<div class="sm">${esc(p.alvos)}</div>`:''}</td><td>${esc(p.categoria||'')}</td><td>${esc(embsDe(p).slice().reverse().map(e=>nfmt(e.tam)+' '+(p.unidade||'')).join(', '))}</td><td class="n">${p.preco?brl2(p.preco)+'/'+esc(p.unidade||''):embsDe(p).some(e=>e.preco)?'por embalagem':'<span class="muted">sem preço</span>'}</td><td>${p.dose_padrao?esc(p.dose_padrao)+' '+esc(p.dose_unidade||''):''}${p.carencia?`<div class="muted sm">carência ${esc(p.carencia)} d</div>`:''}</td><td>${esc((p.culturas||[]).join(', '))}</td><td class="n">${u.n?u.n+'×':''}${u.ult?`<div class="muted sm">${fmtCurto(u.ult)}</div>`:''}</td><td class="n">${u.vend?brlC(u.vend):''}</td><td class="n"><button class="btn sm ghost w" data-act="prod-edit" data-id="${esc(p.id)}">Editar</button></td></tr>`}).join('')}</tbody></table></div>`:`<div class="notice">${S.produtos.length?'Nenhum produto com esses filtros.':'Nenhum produto cadastrado. Cadastre os produtos que você mais recomenda, com dose padrão, embalagem e preço de referência.'}</div>`;
 }
 function prodForm(id){
   const p=S.produtos.find(x=>x.id===id)||{unidade:'L',ativo:true,culturas:[]};const ed=!!p.id;const C=CAL();
@@ -1242,8 +1281,11 @@ function prodForm(id){
    <label for="pd-f">Fabricante<input type="text" id="pd-f" value="${esc(p.fabricante||'')}"></label>
    <label class="full" for="pd-pa">Princípio ativo ou garantias<input type="text" id="pd-pa" value="${esc(p.principio_ativo||'')}" placeholder="Ex.: azoxistrobina + ciproconazol; ou 20-05-20"></label>
    <label for="pd-u">Vendido em<select id="pd-u">${UN_VENDA.map(u=>`<option ${p.unidade===u?'selected':''}>${u}</option>`).join('')}</select></label>
-   <label for="pd-e">Tamanho da embalagem<input type="text" inputmode="decimal" id="pd-e" value="${esc(numBR(p.embalagem))}" placeholder="Ex.: 5"><span class="hint">Na unidade de venda. Galão de 5 L = 5.</span></label>
-   <label for="pd-p">Preço de referência (R$ por unidade)<input type="text" inputmode="decimal" id="pd-p" value="${esc(numBR(p.preco))}"><span class="hint">Por L, kg, t ou unidade. Uso interno: só aparece no orçamento.</span></label>
+   <label for="pd-p">Preço de referência (R$ por L, kg, t ou un.)<input type="text" inputmode="decimal" id="pd-p" value="${esc(numBR(p.preco))}"><span class="hint">Opcional se informar o preço de cada embalagem. Uso interno: só aparece no orçamento.</span></label>
+   <div class="full"><div class="fl">Embalagens</div><div id="pd-embs">${(Array.isArray(p.embalagens)&&p.embalagens.length?p.embalagens:(+p.embalagem>0?[{tam:p.embalagem}]:[{}])).map(embRow).join('')}</div>
+    <button type="button" class="btn sm" data-act="emb-add" style="margin-top:6px">${ic('plus',14)}Outra embalagem</button>
+    <span class="hint">Tamanho na unidade de venda (galão de 20 L = 20). O app escolhe a combinação com menor sobra; se todas tiverem preço, a mais barata; depois, a com menos embalagens.</span>
+    <div class="emb-sim"><label for="pd-sq">Testar: quantidade necessária</label><input type="text" inputmode="decimal" id="pd-sq" value="30"><b id="pd-sim"></b></div></div>
    <label for="pd-car">Carência (dias)<input type="text" inputmode="numeric" id="pd-car" value="${esc(p.carencia||'')}"></label>
    <label for="pd-d">Dose padrão<input type="text" inputmode="decimal" id="pd-d" value="${esc(p.dose_padrao||'')}"></label>
    <label for="pd-du">Unidade da dose<select id="pd-du">${UNIDADES.map(u=>`<option ${p.dose_unidade===u?'selected':''}>${u}</option>`).join('')}</select></label>
@@ -1253,10 +1295,16 @@ function prodForm(id){
    <label class="check full"><input type="checkbox" id="pd-at" ${p.ativo!==false?'checked':''}> Ativo (aparece nas sugestões das recomendações)</label>
    <div class="acts"><button class="btn pri" type="submit">${ed?'Salvar':'Cadastrar produto'}</button>${ed?`<span style="flex:1"></span><button class="btn sm danger" type="button" data-act="prod-del" data-id="${esc(p.id)}">Excluir</button>`:''}</div>`,
    async()=>{const nome=$('#pd-n').value.trim();if(!nome){toast('Informe o nome.');return false}
-     const d={nome,categoria:$('#pd-c').value,fabricante:$('#pd-f').value.trim(),principio_ativo:$('#pd-pa').value.trim(),unidade:$('#pd-u').value,embalagem:num($('#pd-e').value),preco:num($('#pd-p').value),carencia:$('#pd-car').value.trim(),dose_padrao:$('#pd-d').value.trim(),dose_unidade:$('#pd-du').value,culturas:$$('[data-pc]').filter(x=>x.checked).map(x=>x.dataset.pc),alvos:$('#pd-a').value.trim(),obs:$('#pd-o').value.trim(),ativo:$('#pd-at').checked,updatedAt:new Date().toISOString()};
-     if(ed)await LDB.doc('produtos/'+p.id).set(clean({...p,...d}));else await LDB.collection('produtos').add(clean({...d,criadoEm:d.updatedAt}));
+     const d={nome,categoria:$('#pd-c').value,fabricante:$('#pd-f').value.trim(),principio_ativo:$('#pd-pa').value.trim(),unidade:$('#pd-u').value,embalagens:lerEmbs(),preco:num($('#pd-p').value),carencia:$('#pd-car').value.trim(),dose_padrao:$('#pd-d').value.trim(),dose_unidade:$('#pd-du').value,culturas:$$('[data-pc]').filter(x=>x.checked).map(x=>x.dataset.pc),alvos:$('#pd-a').value.trim(),obs:$('#pd-o').value.trim(),ativo:$('#pd-at').checked,updatedAt:new Date().toISOString()};
+     if(d.embalagens.length)d.auto=false;
+     if(ed){const o={...p,...d};delete o.embalagem;await LDB.doc('produtos/'+p.id).set(clean(o))}else await LDB.collection('produtos').add(clean({...d,criadoEm:d.updatedAt}));
      toast(ed?'Produto salvo':'Produto cadastrado')});
+  simEmb();
 }
+function embRow(e){e=e||{};return `<div class="emb-row"><input type="text" inputmode="decimal" data-et value="${esc(numBR(e.tam))}" placeholder="Tamanho (ex.: 20)" aria-label="Tamanho da embalagem"><input type="text" inputmode="decimal" data-epr value="${esc(numBR(e.preco))}" placeholder="Preço da embalagem R$ (opcional)" aria-label="Preço da embalagem"><button type="button" class="btn sm ghost" data-act="emb-del" aria-label="Remover embalagem">✕</button></div>`}
+function lerEmbs(){return $$('#pd-embs .emb-row').map(r=>({tam:num(r.querySelector('[data-et]').value),preco:num(r.querySelector('[data-epr]').value)})).filter(e=>e.tam>0).map(e=>e.preco>0?e:{tam:e.tam}).sort((a,b)=>b.tam-a.tam)}
+function simEmb(){const out=$('#pd-sim');if(!out)return;const q=num($('#pd-sq').value),u=$('#pd-u').value;const es=embsDe({embalagens:lerEmbs(),preco:num($('#pd-p').value)});
+  if(!q||!es.length){out.textContent=es.length?'':'cadastre pelo menos uma embalagem';return}const m=melhorMix(q,es);m.u=u;out.textContent=`${nfmt(q)} ${u} → ${embTxt(m)}${m.sobra<=1e-6?' (sem sobra)':''}${m.valor!=null?' · '+brl(m.valor):''}`}
 
 /* ---------- Calendário (editável) ---------- */
 function vSafra(){
@@ -1332,7 +1380,7 @@ function vProdutor(){
   const r=S.route,p=S.prods.get(r.id),view=$('#view');
   if(!p){view.innerHTML='<div class="notice">Produtor não encontrado. <a href="#carteira">Voltar para a carteira</a></div>';return}
   const s=sinais(p),ki=KI(p),tot=areaTotal(p),v=variacao(p);
-  const head=`<div class="p-head"><div style="min-width:0"><a class="back" href="#carteira">‹ Carteira</a><h1>${esc(p.nome)}</h1><div class="muted">${p.apelido?'Chamar de <b style="color:var(--ink)">'+esc(p.apelido)+'</b> · ':''}${esc([p.codigo?'Matrícula '+p.codigo:null,p.propriedade,p.municipio].filter(Boolean).join(' · '))}</div><div class="chips">${p.exemplo?'<span class="chip ex">Exemplo</span>':''}${grpChip(ki.grupo)}${s.chips.map(x=>`<span class="chip ${x.c}">${esc(x.t)}</span>`).join('')}</div></div>
+  const head=`<div class="p-head"><div style="min-width:0"><a class="back" href="#carteira">‹ Carteira</a><h1>${esc(p.nome)}</h1><div class="muted">${p.apelido?'Chamar de <b style="color:var(--ink)">'+esc(p.apelido)+'</b> · ':''}${esc([p.codigo?'Matrícula '+p.codigo:null,fzResumo(p),p.municipio].filter(Boolean).join(' · '))}</div><div class="chips">${p.exemplo?'<span class="chip ex">Exemplo</span>':''}${grpChip(ki.grupo)}${s.chips.map(x=>`<span class="chip ${x.c}">${esc(x.t)}</span>`).join('')}</div></div>
    ${r.sub==='relatorio'?'':`<div class="qact w"><a class="qa pri" href="#p-${esc(p.id)}--relatorio">${ic('file',22)}<span>Relatório</span></a><button class="qa" type="button" data-act="quick-est" data-pid="${esc(p.id)}">${ic('safra',22)}<span>Estádio</span></button><a class="qa wa" href="${esc(waLink(p,roteiro(p,atendDe(p.id)).wpp))}" target="_blank" rel="noopener">${ic('wa',22)}<span>WhatsApp</span></a><button class="qa" type="button" data-act="rec-nova" data-pid="${esc(p.id)}">${ic('plus',22)}<span>Recomendar</span></button><button class="qa" type="button" data-act="lemb-novo" data-pid="${esc(p.id)}">${ic('agenda',22)}<span>Lembrete</span></button></div>`}</div>`;
   const tiles=r.sub==='relatorio'?'':`<div class="tiles">
    ${tile(nfmt(tot)+' ha','área plantada',{href:`#p-${esc(p.id)}--culturas`,c:'leaf',x:plural(lavouras(p).length,'lavoura')})}
@@ -1372,23 +1420,25 @@ function pGeral(p){
      <div><span>Telefone</span><b>${p.telefone?esc(p.telefone)+' <button class="btn ghost sm" data-copy="'+esc(p.telefone)+'">Copiar</button>':'não informado'}</b></div>
      <div><span>Canal e horário</span><b>${esc([p.canal,p.melhor_horario].filter(Boolean).join(', ')||'não informado')}</b></div>
      <div><span>Estilo de decisão</span><b>${e?e.nome:'não informado'}</b></div>
-     <div><span>Localização</span><b>${coordOk(p)?`<a href="https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lon}" target="_blank" rel="noopener">Abrir no mapa</a>`:`<a href="#p-${esc(p.id)}--perfil">informar</a>`}</b></div></div>
+     <div><span>${fazendas(p).length>1?'Fazendas':'Localização'}</span><b>${fazendas(p).map(f=>mapsUrl(f)?`<a href="${esc(mapsUrl(f))}" target="_blank" rel="noopener">${esc(fazendas(p).length>1?f.nome:'Abrir no Maps')}</a>`:'').filter(Boolean).join(' · ')||`<a href="#p-${esc(p.id)}--perfil">informar</a>`}</b></div></div>
      ${p.situacao?`<div style="margin-top:12px"><span class="lbl">Situação atual</span><div>${esc(p.situacao)}</div></div>`:''}</section>
    <section class="card"><h2 style="margin-bottom:10px">Último atendimento</h2>${ult?repView(p,ult,true):'<p class="muted">Nenhum atendimento registrado.</p>'}</section>
   </div></div>`;
 }
 /* --- culturas --- */
+function lavCard(p,l){const e=estInfo(l),f=e.f;const pend=recsDe(p.id).filter(r=>r.lavouraId===l.id&&r.status==='Recomendada').length;
+  return `<div class="card lav"><div class="lav-top">${badge(l)}<div class="info"><h3><span class="ico" style="background:${esc(cropCor(l))}"></span>${esc(cropNome(l))}${l.talhao?` <span class="muted" style="font-weight:400">· ${esc(l.talhao)}</span>`:''}</h3><div class="muted sm">${esc([l.area_ha?nfmt(l.area_ha)+' ha':'área não informada',l.variedade,l.safra?'safra '+l.safra:null].filter(Boolean).join(' · '))}</div>
+    <div style="font-family:var(--f-display);font-weight:700;margin-top:4px">${esc(faseTexto(l))}</div></div></div>
+    ${f&&f.pct!=null?`<div class="prog"><i style="width:${Math.round((f.pct||0)*100)}%"></i></div>`:''}
+    <div class="sm">${f&&f.foco?`<b>Foco:</b> ${esc(f.foco)}`:''}${f&&f.prox?`<div class="muted">Próxima fase: ${esc(f.prox.fase)} em ${plural(f.emProx,'dia')} (${fmtCurto(f.proxData)})</div>`:''}</div>
+    <div class="chips">${l.manejo&&e.tipo==='perene'?`<span class="chip ${l.manejo==='Em produção'?'':'warn'}">${esc(l.manejo)}</span>`:''}${e.idade!=null?`<span class="chip">${plural(e.idade,'ano')}</span>`:''}${+l.plantas_m>0?`<span class="chip">${nfmt(l.plantas_m)} plantas/m</span>`:''}${plantasHa(l)?`<span class="chip">${nfmt(plantasHa(l),0)} plantas/ha</span>`:''}${l.vacas?`<span class="chip">${l.vacas} vacas em lactação</span>`:''}${l.condicao?`<span class="chip ${l.condicao==='Boa'?'ok':l.condicao==='Ruim'?'crit':'warn'}">condição ${esc(l.condicao.toLowerCase())}</span>`:''}${pend?`<span class="chip opp">${plural(pend,'recomendação aberta','recomendações abertas')}</span>`:''}${e.def&&e.def.custom?'<span class="chip">calendário próprio</span>':''}</div>
+    <div class="row-btns"><a class="btn sm pri" href="#p-${esc(p.id)}--lav-${esc(l.id)}">Calendário e ações</a><button class="btn sm w" data-act="est" data-pid="${esc(p.id)}" data-id="${esc(l.id)}">Atualizar estádio</button><button class="btn sm ghost w" data-act="lav-edit" data-pid="${esc(p.id)}" data-id="${esc(l.id)}">Editar</button></div></div>`}
 function pCulturas(p){
-  const lavs=lavouras(p);
+  const lavs=lavouras(p),fs=fazendas(p);
+  const grupos=fs.length>1?fs.map(f=>({f,ls:lavs.filter(l=>fazDe(p,l).id===f.id)})):[{f:null,ls:lavs}];
   $('#pbody').innerHTML=`<div class="sec-h"><h2>Culturas e lavouras</h2><button class="btn sm pri w" data-act="lav-nova" data-pid="${esc(p.id)}">${ic('plus',14)}Adicionar lavoura</button></div>
    ${lavs.some(l=>l._derivada)?'<div class="notice" style="margin-bottom:12px">Estas culturas vieram da planilha sem área nem data de plantio. Edite cada uma para o calendário ficar preciso.</div>':''}
-   ${lavs.length?`<div class="cards">${lavs.map(l=>{const e=estInfo(l),f=e.f;const pend=recsDe(p.id).filter(r=>r.lavouraId===l.id&&r.status==='Recomendada').length;
-     return `<div class="card lav"><div class="lav-top">${badge(l)}<div class="info"><h3><span class="ico" style="background:${esc(cropCor(l))}"></span>${esc(cropNome(l))}${l.talhao?` <span class="muted" style="font-weight:400">· ${esc(l.talhao)}</span>`:''}</h3><div class="muted sm">${esc([l.area_ha?nfmt(l.area_ha)+' ha':'área não informada',l.variedade,l.safra?'safra '+l.safra:null].filter(Boolean).join(' · '))}</div>
-      <div style="font-family:var(--f-display);font-weight:700;margin-top:4px">${esc(faseTexto(l))}</div></div></div>
-      ${f&&f.pct!=null?`<div class="prog"><i style="width:${Math.round((f.pct||0)*100)}%"></i></div>`:''}
-      <div class="sm">${f&&f.foco?`<b>Foco:</b> ${esc(f.foco)}`:''}${f&&f.prox?`<div class="muted">Próxima fase: ${esc(f.prox.fase)} em ${plural(f.emProx,'dia')} (${fmtCurto(f.proxData)})</div>`:''}</div>
-      <div class="chips">${l.manejo&&e.tipo==='perene'?`<span class="chip ${l.manejo==='Em produção'?'':'warn'}">${esc(l.manejo)}</span>`:''}${e.idade!=null?`<span class="chip">${plural(e.idade,'ano')}</span>`:''}${plantasHa(l)?`<span class="chip">${nfmt(plantasHa(l),0)} plantas/ha</span>`:''}${l.vacas?`<span class="chip">${l.vacas} vacas em lactação</span>`:''}${l.condicao?`<span class="chip ${l.condicao==='Boa'?'ok':l.condicao==='Ruim'?'crit':'warn'}">condição ${esc(l.condicao.toLowerCase())}</span>`:''}${pend?`<span class="chip opp">${plural(pend,'recomendação aberta','recomendações abertas')}</span>`:''}${e.def&&e.def.custom?'<span class="chip">calendário próprio</span>':''}</div>
-      <div class="row-btns"><a class="btn sm pri" href="#p-${esc(p.id)}--lav-${esc(l.id)}">Calendário e ações</a><button class="btn sm w" data-act="est" data-pid="${esc(p.id)}" data-id="${esc(l.id)}">Atualizar estádio</button><button class="btn sm ghost w" data-act="lav-edit" data-pid="${esc(p.id)}" data-id="${esc(l.id)}">Editar</button></div></div>`}).join('')}</div>`:'<div class="notice">Nenhuma lavoura cadastrada.</div>'}`;
+   ${lavs.length||fs.length>1?`<div class="stack">${grupos.map(g=>`<div>${g.f?`<div class="fz-h"><h3>${ic('pin',16)}${esc(g.f.nome||'Fazenda')}</h3><span class="muted sm">${esc([g.f.municipio,g.ls.length?nfmt(g.ls.reduce((s,l)=>s+(+l.area_ha||0),0))+' ha plantados':null].filter(Boolean).join(' · '))}</span><span style="flex:1"></span>${mapsUrl(g.f)?`<a class="btn sm ghost" href="${esc(mapsUrl(g.f))}" target="_blank" rel="noopener">Abrir no Maps</a>`:''}<button class="btn sm ghost w" data-act="lav-nova" data-pid="${esc(p.id)}" data-fz="${esc(g.f.id)}">${ic('plus',14)}Lavoura aqui</button></div>`:''}${g.ls.length?`<div class="cards">${g.ls.map(l=>lavCard(p,l)).join('')}</div>`:'<p class="muted sm">Nenhuma lavoura nesta fazenda.</p>'}</div>`).join('')}</div>`:'<div class="notice">Nenhuma lavoura cadastrada.</div>'}`;
 }
 /* --- página da lavoura --- */
 function eventosLav(p,l){
@@ -1424,7 +1474,7 @@ function pLavoura(p){
        <div><span class="lbl">Foco técnico agora</span><div>${esc(f&&f.foco||'')}</div></div>
        <div><span class="lbl">O que oferecer agora</span><div>${esc(f&&f.oferta||'')}</div></div>
        <div><span class="lbl">Próxima fase</span><div>${f&&f.prox?`<b>${esc(f.prox.fase)}</b> em ${plural(f.emProx,'dia')} (${fmtBR(f.proxData)})<div class="muted sm">${esc(f.prox.foco||'')}</div>`:'<span class="muted">sem previsão</span>'}</div></div>
-       <div><span class="lbl">Lavoura</span><div class="sm">${esc([l.variedade,e.tipo==='perene'&&l.plantio?`implantada em ${fmtBR(l.plantio).slice(3)} (${plural(e.idade,'ano')})`:null,e.tipo==='perene'?l.manejo:null,plantasHa(l)?nfmt(plantasHa(l),0)+' plantas/ha':null,l.vacas?l.vacas+' vacas em lactação':null,l.condicao?'condição '+l.condicao.toLowerCase():null].filter(Boolean).join(' · ')||'sem detalhes')}</div></div>
+       <div><span class="lbl">Lavoura</span><div class="sm">${esc([l.variedade,e.tipo==='perene'&&l.plantio?`implantada em ${fmtBR(l.plantio).slice(3)} (${plural(e.idade,'ano')})`:null,e.tipo==='perene'?l.manejo:null,+l.plantas_m>0?nfmt(l.plantas_m)+' plantas/m':null,plantasHa(l)?nfmt(plantasHa(l),0)+' plantas/ha':null,l.vacas?l.vacas+' vacas em lactação':null,l.condicao?'condição '+l.condicao.toLowerCase():null].filter(Boolean).join(' · ')||'sem detalhes')}</div></div>
       </div>
       <div class="row-btns w"><button class="btn sm leaf" data-act="est" data-pid="${esc(p.id)}" data-id="${esc(l.id)}">Atualizar estádio observado</button></div>
     </div></div></section>
@@ -1464,7 +1514,7 @@ function repView(p,a,curto){
    ${recs.length?`<p><span class="lbl">Recomendações</span> ${recs.map(r=>esc(r.titulo)).join(', ')}</p>`:''}
    ${a.proximos_passos?`<p><span class="lbl">Próximo passo</span> ${esc(a.proximos_passos)}</p>`:''}
    ${fotos.length&&!curto?`<div class="thumbs">${fotos.map(f=>f.pend?`<figure><div class="pend">Foto guardada no aparelho, aguardando sinal</div><figcaption>${esc(f.legenda||'')}</figcaption></figure>`:`<figure><img src="${BLOB}${esc(f.id)}" alt="${esc(f.legenda||'Foto da visita')}" loading="lazy" data-lb="${esc(f.id)}" data-cap="${esc(f.legenda||'')}"><figcaption>${esc(f.legenda||'')}</figcaption></figure>`).join('')}</div>`:fotos.length?`<p class="muted sm">${plural(fotos.length,'foto')}</p>`:''}
-   ${!curto?`<div class="row-btns" style="margin-top:8px"><button class="btn sm leaf" data-act="enviar" data-id="${esc(a.id)}">${ic('msg',14)}Enviar ao produtor</button></div>`:''}</div>`;
+   ${!curto?`<div class="row-btns" style="margin-top:8px"><button class="btn sm leaf" data-act="enviar" data-id="${esc(a.id)}">${ic('msg',14)}Enviar ao produtor</button><button class="btn sm ghost" data-act="atend-edit" data-id="${esc(a.id)}">Editar</button><button class="btn sm ghost danger" data-act="atend-del" data-id="${esc(a.id)}">Excluir</button></div>`:''}</div>`;
 }
 function pVisitas(p){
   const as=atendDe(p.id);
@@ -1620,8 +1670,30 @@ function fieldHTML(f,v,p){
   const help=f.k==='estilo'?`<span class="hint">${Object.values(ESTILOS).map(e=>`<b>${e.nome}</b>: ${e.dica.split('.')[0]}.`).join(' ')}</span>`:f.h?`<span class="hint">${esc(f.h)}</span>`:'';
   return `<label class="${full}" for="${id}">${esc(f.l)}${inp}${help}</label>`;
 }
+const FZ_CAMPOS=['propriedade','municipio','loc','area_ha'];
+function fazendasHTML(p){const fs=fazendas(p),lavs=lavouras(p);
+  return `<section class="card" style="margin-bottom:14px"><div class="sec-h" style="margin-bottom:8px"><h2>${ic('pin')}Fazendas</h2><button class="btn sm pri w" type="button" data-act="faz-nova" data-pid="${esc(p.id)}">${ic('plus',14)}Adicionar fazenda</button></div>
+   <div class="cards">${fs.map(f=>{const ls=lavs.filter(l=>fazDe(p,l).id===f.id);const a=ls.reduce((s2,l)=>s2+(+l.area_ha||0),0);const u=mapsUrl(f);
+    return `<div class="card faz"><h3>${esc(f.nome||'Fazenda sem nome')}</h3><div class="muted sm">${esc([f.municipio,+f.area_ha?nfmt(f.area_ha)+' ha no total':null,ls.length?plural(ls.length,'lavoura')+', '+nfmt(a)+' ha plantados':'sem lavouras'].filter(Boolean).join(' · '))}</div><div class="muted sm">${coordOk(f)?esc(f.lat+', '+f.lon):'Sem localização: o Maps procura pelo nome e município.'}</div>${f.obs?`<div class="sm">${esc(f.obs)}</div>`:''}
+     <div class="row-btns" style="margin-top:10px">${u?`<a class="btn leaf" href="${esc(u)}" target="_blank" rel="noopener">${ic('pin',16)}Abrir no Maps</a>`:''}<button class="btn sm ghost" type="button" data-act="faz-edit" data-pid="${esc(p.id)}" data-id="${esc(f.id)}">Editar</button></div></div>`}).join('')}</div></section>`}
+function fazForm(pid,fid){const p=S.prods.get(pid);if(!p)return;const fs=fazendas(p);const f=fs.find(x=>x.id===fid)||{};const ed=!!f.id;
+  openPanel(ed?'Editar fazenda':'Nova fazenda',`
+   <label class="full" for="fz-n">Nome da fazenda<input type="text" id="fz-n" value="${esc(f.nome||'')}" required placeholder="Ex.: Fazenda Boa Vista"></label>
+   <label for="fz-m">Município<input type="text" id="fz-m" value="${esc(f.municipio||'')}"></label>
+   <label for="fz-a">Área total (ha)<input type="text" inputmode="decimal" id="fz-a" value="${esc(numBR(f.area_ha))}"></label>
+   <label class="full" for="fz-l">Localização da sede<input type="text" id="fz-l" value="${coordOk(f)?esc(f.lat+', '+f.lon):''}" placeholder="-21.2580, -45.7300"><span class="hint">No Google Maps, toque e segure sobre a sede, copie os números e cole aqui. O link do Maps também serve.</span></label>
+   <label class="full" for="fz-o">Observações<textarea id="fz-o" rows="2" placeholder="Ex.: entrada pela estrada da Capela, porteira azul">${esc(f.obs||'')}</textarea></label>
+   <div class="acts"><button class="btn pri" type="submit">${ed?'Salvar fazenda':'Adicionar fazenda'}</button>${ed&&fs.length>1?`<span style="flex:1"></span><button class="btn sm danger" type="button" data-act="faz-del" data-pid="${esc(pid)}" data-id="${esc(f.id)}">Remover fazenda</button>`:''}</div>`,
+   async()=>{const nome=$('#fz-n').value.trim();if(!nome){toast('Informe o nome da fazenda.');return false}const lt=$('#fz-l').value.trim();const c=lt?parseCoord(lt):null;if(lt&&!c){toast('Não entendi a localização. Use o formato -21.2580, -45.7300.');return false}
+     const d={id:f.id||rid('f'),nome,municipio:$('#fz-m').value.trim(),area_ha:num($('#fz-a').value),lat:c?c.lat:null,lon:c?c.lon:null,obs:$('#fz-o').value.trim()};
+     const base=fs.map(x=>{const y={...x};delete y._derivada;return y});
+     await salvarFazendas(p,ed?base.map(x=>x.id===f.id?d:x):[...base,d]);toast(ed?'Fazenda salva':'Fazenda adicionada: escolha ela ao cadastrar a lavoura')})}
+async function salvarFazendas(p,fs,lavs){const f0=fs[0]||{};const at=fs.length&&fs.every(f=>+f.area_ha>0)?fs.reduce((s2,f)=>s2+ +f.area_ha,0):(p.area_ha??null);
+  const upd={fazendas:fs.map(f=>{const c=clean({...f});c.id=f.id;return c}),propriedade:f0.nome||null,municipio:f0.municipio||p.municipio||null,lat:f0.lat??null,lon:f0.lon??null,area_ha:at,updatedAt:new Date().toISOString()};
+  if(lavs)upd.lavouras=lavs;
+  await LDB.doc('produtores/'+p.id).update(upd);$('#view').dataset.hold='';render()}
 function pPerfil(p){
-  $('#pbody').innerHTML=`${micBtn('ficha',p.id,{big:true,dentro:true,lbl:'Atualizar a ficha por áudio'})}<div class="card"><form class="form" id="f-perfil">${FIELDS.filter(f=>f.form!==false).map(f=>fieldHTML(f,p[f.k],p)).join('')}<div class="acts"><button class="btn pri" type="submit">Salvar perfil</button><span style="flex:1"></span><button class="btn danger" type="button" data-act="del-prod">Excluir cadastro</button></div></form></div>`;
+  $('#pbody').innerHTML=`${micBtn('ficha',p.id,{big:true,dentro:true,lbl:'Atualizar a ficha por áudio'})}${fazendasHTML(p)}<div class="card"><form class="form" id="f-perfil">${FIELDS.filter(f=>f.form!==false&&!FZ_CAMPOS.includes(f.k)).map(f=>fieldHTML(f,p[f.k],p)).join('')}<div class="acts"><button class="btn pri" type="submit">Salvar perfil</button><span style="flex:1"></span><button class="btn danger" type="button" data-act="del-prod">Excluir cadastro</button></div></form></div>`;
   $('#f-perfil').addEventListener('submit',ev=>{ev.preventDefault();salvarPerfil(p.id)});hold();
   if(S.perfilDraft&&S.perfilDraft.pid===p.id)aplicarPerfilDraft(p);
 }
@@ -1676,27 +1748,26 @@ function recalcEditor(root){
   const h=root.querySelector('[data-dap-hint]');if(h){const l=ctx.l,d=root.querySelector('#'+pre+'prev').value;const e=l?estInfo(l):null;h.textContent=l&&e.tipo==='anual'&&l.plantio&&d?`${diffDays(d,l.plantio)} dias após o plantio`:''}
 }
 function autoFill(inp){const it=inp.closest('.item');if(!it)return;const pr=S.produtos.find(x=>norm(x.nome)===norm(inp.value));if(!pr)return;const d=it.querySelector('[data-dose]');if(!d.value&&pr.dose_padrao){d.value=pr.dose_padrao;if(pr.dose_unidade)it.querySelector('[data-iu]').value=pr.dose_unidade}}
+const unDaDose=u=>/^(L\/ha|mL\/ha|% v\/v|mL\/100 L|L\/100 L|mL\/kg sem\.)$/.test(u||'')?'L':u==='t/ha'?'t':u==='un/ha'?'un':'kg';
+const CAT_DO_TIPO={'Adubação de solo':'Adubo de solo','Adubação foliar':'Adubo foliar','Tratamento de sementes':'Semente','Correção de solo':'Corretivo','Nutrição animal':'Nutrição animal'};
+/* produtos recomendados que não estão no catálogo entram nele (marcados para completar embalagem e preço) */
+async function catalogarNovos(p,recs){
+  const novos=new Map();
+  for(const r of recs){const l=r.lavouraId?lavouras(p).find(x=>x.id===r.lavouraId):null;
+    for(const it of (r.itens||[])){const nome=String(it.produto||'').trim();if(nome.length<2)continue;const ex=produtoDe(it);if(ex){it.produtoId=ex.id;continue}
+      const k=norm(nome);let nv=novos.get(k);
+      if(!nv){const ref=LDB.collection('produtos').doc();nv={ref,d:{nome,categoria:CAT_DO_TIPO[r.tipo]||'Outro',unidade:unDaDose(it.unidade),dose_padrao:it.dose||'',dose_unidade:it.unidade||'',culturas:l?[cropNome(l)]:[],ativo:true,auto:true,criadoEm:new Date().toISOString(),exemplo:p.exemplo||undefined}};novos.set(k,nv)}
+      else if(l&&!nv.d.culturas.includes(cropNome(l)))nv.d.culturas.push(cropNome(l));
+      it.produtoId=nv.ref.id}}
+  for(const nv of novos.values())await nv.ref.set(clean(nv.d));
+  return [...novos.values()].map(n=>n.d.nome);
+}
+const novosTxt=ns=>ns.length?` ${ns.length===1?'Produto novo no catálogo: '+ns[0]:plural(ns.length,'produto novo','produtos novos')+' no catálogo'}. Complete embalagem e preço em Produtos.`:'';
 function tituloAuto(pid,r,extra=0){const n=recsDe(pid).filter(x=>x.tipo===r.tipo&&(x.lavouraId||null)===(r.lavouraId||null)).length+1+extra;return `${r.tipo} ${n}`}
 
 function pRelatorio(p){
   const s=sinais(p),lavs=lavouras(p),t=today();S.relFotos=[];
-  const lavHTML=lavs.map(l=>{const e=estInfo(l),f=e.f;const opts=estadiosDe(l);const sugere=e.tipo==='anual'?'':(e.obsRecente?l.estadio_obs:'');
-    const id=String(l.id).replace(/[^\w-]/g,'_'),on=!!(f&&f.fase&&!/entressafra|planejamento/i.test(f.fase)),per=e.tipo==='perene'&&cultKey(l.cultura)!=='leite';
-    const multi=(k,lista,ph)=>`<div class="fl t">${k[1]}</div>${lista.length?chips(lista,'',{forId:'ro-'+k[0]+'-'+id,multi:true,cls:'sm'}):''}<input type="text" id="ro-${k[0]}-${id}" data-o="${k[2]}" placeholder="${esc(ph)}" aria-label="${k[1]}">`;
-    return `<div class="lav-obs" data-lav="${esc(l.id)}">
-     <label class="vist">${badge(l)}<span class="vt"><b>${esc(lavNome(l))}</b><span class="muted sm">${esc([l.area_ha?nfmt(l.area_ha)+' ha':null,f&&f.fase?'esperado: '+f.fase:null].filter(Boolean).join(' · '))}</span></span><input type="checkbox" class="sw" data-vist ${on?'checked':''} aria-label="Lavoura vistoriada"></label>
-     <div class="lo-body">
-      <div class="fl t">Estádio observado</div>${chips(opts,sugere,{forId:'ro-est-'+id,cls:'sm'})}<input type="text" id="ro-est-${id}" data-o="estadio" value="${esc(sugere||'')}" placeholder="Toque acima ou escreva" aria-label="Estádio observado">
-      <div class="fl t">Condição geral</div>${chips(COND,'',{forId:'ro-con-'+id,hid:true,attrs:'data-o="condicao"'})}
-      ${per?`<div class="fl t">Manejo</div>${chips(MANEJOS,l.manejo||'Em produção',{forId:'ro-man-'+id,hid:true,req:true,cls:'sm',attrs:'data-o="manejo"'})}`:''}
-      <details class="more"><summary>Pragas, doenças e daninhas <span class="chip" data-oc hidden></span></summary><div class="in">
-       ${multi(['pr','Pragas','pragas'],fitoDe(l,'pragas'),'Detalhe: nível, % de plantas, talhão')}
-       ${multi(['do','Doenças','doencas'],fitoDe(l,'doencas'),'Detalhe: incidência, terço da planta')}
-       ${multi(['da','Plantas daninhas','daninhas'],DANINHAS,'Ex.: buva em reboleiras')}
-       ${multi(['nu','Nutrição e outros','nutricao'],NUTRI,'Ex.: amarelecimento nas folhas novas')}
-       <div class="fl t">Observações da lavoura</div><textarea rows="2" data-o="obs" aria-label="Observações da lavoura"></textarea>
-      </div></details>
-     </div></div>`}).join('');
+  const lavHTML=lavs.map(l=>lavObsHTML(l,null,'ro')).join('');
   const nF=S.assets?1:0;const ki=KI(p);
   const proxOps=[[7,'Em 7 dias'],[15,'Em 15 dias'],[30,'Em 30 dias']];if(![7,15,30].includes(s.freq))proxOps.push([s.freq,`Em ${s.freq} dias (grupo)`]);
   $('#pbody').innerHTML=`<a class="back" href="#p-${esc(p.id)}">‹ ${esc(p.nome)}</a>
@@ -1737,6 +1808,67 @@ function pRelatorio(p){
   hold();
   if(S.relDraft&&S.relDraft.pid===p.id)aplicarRelDraft(p);
 }
+function lavObsHTML(l,o,pfx='ro',on=null){const e=estInfo(l),f=e.f;const opts=estadiosDe(l);
+  const sugere=o?(o.estadio||''):(e.tipo==='anual'?'':(e.obsRecente?l.estadio_obs:''));
+  const id=String(l.id).replace(/[^\w-]/g,'_'),per=e.tipo==='perene'&&cultKey(l.cultura)!=='leite';
+  if(on==null)on=o?true:!!(f&&f.fase&&!/entressafra|planejamento/i.test(f.fase));
+  const P=k=>pfx+'-'+k+'-'+id;
+  const multi=(k,lista,ph,v)=>`<div class="fl t">${k[1]}</div>${lista.length?chips(lista,v||'',{forId:P(k[0]),multi:true,cls:'sm'}):''}<input type="text" id="${P(k[0])}" data-o="${k[2]}" value="${esc(v||'')}" placeholder="${esc(ph)}" aria-label="${k[1]}">`;
+  const temOc=!!(o&&(o.pragas||o.doencas||o.daninhas||o.nutricao||o.obs));
+  return `<div class="lav-obs" data-lav="${esc(l.id)}">
+   <label class="vist">${badge(l)}<span class="vt"><b>${esc(lavNome(l))}</b><span class="muted sm">${esc([l.area_ha?nfmt(l.area_ha)+' ha':null,!o&&f&&f.fase?'esperado: '+f.fase:null].filter(Boolean).join(' · '))}</span></span><input type="checkbox" class="sw" data-vist ${on?'checked':''} aria-label="Lavoura vistoriada"></label>
+   <div class="lo-body">
+    <div class="fl t">Estádio observado</div>${chips(opts,sugere,{forId:P('est'),cls:'sm'})}<input type="text" id="${P('est')}" data-o="estadio" value="${esc(sugere||'')}" placeholder="Toque acima ou escreva" aria-label="Estádio observado">
+    <div class="fl t">Condição geral</div>${chips(COND,o&&o.condicao||'',{forId:P('con'),hid:true,attrs:'data-o="condicao"'})}
+    ${per?`<div class="fl t">Manejo</div>${chips(MANEJOS,o&&o.manejo||l.manejo||'Em produção',{forId:P('man'),hid:true,req:true,cls:'sm',attrs:'data-o="manejo"'})}`:''}
+    <details class="more"${temOc?' open':''}><summary>Pragas, doenças e daninhas <span class="chip" data-oc hidden></span></summary><div class="in">
+     ${multi(['pr','Pragas','pragas'],fitoDe(l,'pragas'),'Detalhe: nível, % de plantas, talhão',o&&o.pragas)}
+     ${multi(['do','Doenças','doencas'],fitoDe(l,'doencas'),'Detalhe: incidência, terço da planta',o&&o.doencas)}
+     ${multi(['da','Plantas daninhas','daninhas'],DANINHAS,'Ex.: buva em reboleiras',o&&o.daninhas)}
+     ${multi(['nu','Nutrição e outros','nutricao'],NUTRI,'Ex.: amarelecimento nas folhas novas',o&&o.nutricao)}
+     <div class="fl t">Observações da lavoura</div><textarea rows="2" data-o="obs" aria-label="Observações da lavoura">${esc(o&&o.obs||'')}</textarea>
+    </div></details>
+   </div></div>`}
+function lerObs(root){return [...root.querySelectorAll('.lav-obs')].filter(b=>b.querySelector('[data-vist]').checked).map(b=>{const o={lavouraId:b.dataset.lav};b.querySelectorAll('[data-o]').forEach(i=>{const v=i.value.trim();if(v)o[i.dataset.o]=v});return o})}
+function atendForm(aid){const a=S.atend.find(x=>x.id===aid);if(!a)return;const p=S.prods.get(a.produtorId);if(!p)return;
+  const lavs=lavouras(p),isVis=/visita|campo/i.test(a.tipo||'');S.edFotos=(a.fotos||[]).map(f=>({...f}));S.edNovas=[];
+  openPanel('Editar visita',`
+   <div class="full"><div class="fl">Tipo</div>${chips(TIPOS_AT,a.tipo||'Visita técnica',{forId:'ae-tipo',hid:true,req:true,cls:'sm'})}</div>
+   <div class="full"><div class="fl">Data</div>${dataChips('ae-data',a.data||today(),[[0,'Hoje'],[-1,'Ontem']])}</div>
+   <label for="ae-part">Quem participou<input type="text" id="ae-part" value="${esc(a.participantes||'')}"></label>
+   <label for="ae-ass">Objetivo<input type="text" id="ae-ass" value="${esc(a.assunto||'')}"></label>
+   <div class="full" id="ae-lav"${isVis?'':' hidden'}><h3 style="margin:6px 0">Lavouras vistoriadas</h3>${lavs.map(l=>{const o=(a.lavouras||[]).find(x=>x.lavouraId===l.id)||null;return lavObsHTML(l,o,'ao',!!o)}).join('')||'<p class="muted sm">Nenhuma lavoura cadastrada.</p>'}</div>
+   <div class="full"><h3 style="margin:6px 0">Conversa e resultado</h3><div class="fl">Resultado comercial</div>${chips([['Só relacionamento','Só relacionamento'],['Orçamento enviado','Orçamento enviado','opp'],['Venda realizada','Venda realizada','ok'],['Sem venda','Sem venda','warn']],a.resultado||'Só relacionamento',{forId:'ae-resul',hid:true,req:true})}</div>
+   <label for="ae-valor">Vendas fora das recomendações (R$)<input type="text" inputmode="decimal" id="ae-valor" value="${esc(numBR(+a.valor||''))}"></label>
+   <label for="ae-prox">Próxima visita<input type="date" id="ae-prox" value="${esc(a.proximo_contato||'')}"></label>
+   <label class="full" for="ae-res">O que foi conversado<textarea id="ae-res" rows="3">${esc(a.resumo||'')}</textarea></label>
+   <label class="full" for="ae-pp">Próximo passo combinado<input type="text" id="ae-pp" value="${esc(a.proximos_passos||'')}"></label>
+   ${S.assets?`<div class="full"><h3 style="margin:6px 0">Fotos</h3><div class="fotos-ed" id="ae-fotos"></div><div class="photo-btns"><label class="btn leaf">${ic('camera',18)}Tirar foto<input type="file" id="ae-cam" accept="image/*" capture="environment" hidden></label><label class="btn">Da galeria<input type="file" id="ae-file" accept="image/*" multiple hidden></label></div></div>`:''}
+   <p class="full muted sm">As recomendações desta visita são editadas na aba Recomendações. O estádio das lavouras só muda se esta for a visita mais recente.</p>
+   <div class="acts"><button class="btn pri" type="submit">Salvar visita</button><span style="flex:1"></span><button class="btn sm danger" type="button" data-act="atend-del" data-id="${esc(a.id)}">Excluir visita</button></div>`,
+   async()=>{syncEd();const now=new Date().toISOString();const tipo=$('#ae-tipo').value,isV=/visita|campo/i.test(tipo);const ids=new Set(lavs.map(l=>l.id));
+     const obs=[...(isV?lerObs($('#ae-lav')):[]),...(a.lavouras||[]).filter(o=>!ids.has(o.lavouraId))];
+     const fotos=S.edFotos.map(f=>({...f})),ops=[];
+     for(const f of S.edNovas){const b=await shrink(f.file);const key=newId();if(await IDB.set('blob:'+key,b)){fotos.push({pend:key,legenda:f.legenda||'',lavouraId:null});ops.push(key)}else toast('Sem espaço no aparelho: uma foto ficou de fora.')}
+     const data=$('#ae-data').value||a.data,prox=$('#ae-prox').value||null;
+     const na={...a,tipo,data,participantes:$('#ae-part').value.trim(),assunto:$('#ae-ass').value.trim(),resumo:$('#ae-res').value.trim(),resultado:$('#ae-resul').value,valor:num($('#ae-valor').value)||0,proximos_passos:$('#ae-pp').value.trim(),proximo_contato:prox,lavouras:obs,fotos,editadoEm:now};delete na.id;
+     await LDB.doc('atendimentos/'+a.id).set(clean(na));
+     for(const key of ops)await enqueue({op:'foto',col:'atendimentos',id:a.id,key});
+     const outras=atendDe(p.id).filter(x=>x.id!==a.id),upd={};
+     if(!outras.some(x=>(x.data||'')>data)){upd.lavouras=lavouras(p).map(l=>{const o=obs.find(x=>x.lavouraId===l.id);const c={...l};delete c._derivada;if(o){if(o.estadio){c.estadio_obs=o.estadio;c.estadio_data=data}if(o.condicao)c.condicao=o.condicao;if(o.manejo)c.manejo=o.manejo}return c})}
+     const ult=[data,...outras.map(x=>x.data)].filter(Boolean).sort().pop();if(ult&&ult!==p.ultimo_contato&&(a.data===p.ultimo_contato||ult>(p.ultimo_contato||'')))upd.ultimo_contato=ult;
+     if(Object.keys(upd).length)await LDB.doc('produtores/'+p.id).update({...upd,updatedAt:now});
+     const lb=S.lemb.find(x=>x.origem===a.id&&!x.feito);if(lb&&prox&&lb.data!==prox)await LDB.doc('lembretes/'+lb.id).update({data:prox});
+     S.edNovas.forEach(f=>URL.revokeObjectURL(f.url));S.edNovas=[];toast('Visita atualizada')});
+  $('#ae-tipo').onchange=()=>{$('#ae-lav').hidden=!/visita|campo/i.test($('#ae-tipo').value)};
+  const addF=fi=>()=>{syncEd();[...fi.files].forEach(f=>{if(f.type&&!/^image\//.test(f.type))return;S.edNovas.push({file:f,url:URL.createObjectURL(f),legenda:''})});fi.value='';renderEdFotos()};
+  ['#ae-file','#ae-cam'].forEach(sel=>{const fi=$(sel);if(fi)fi.onchange=addF(fi)});
+  renderEdFotos();$$('#ae-lav .lav-obs').forEach(ocorCount);
+}
+function syncEd(){$$('[data-efl]').forEach(i=>{const f=S.edFotos[+i.dataset.efl];if(f)f.legenda=i.value.trim()});$$('[data-enl]').forEach(i=>{const f=S.edNovas[+i.dataset.enl];if(f)f.legenda=i.value.trim()})}
+function renderEdFotos(){const box=$('#ae-fotos');if(!box)return;
+  box.innerHTML=[...S.edFotos.map((f,i)=>`<div class="f">${f.pend?'<div class="pend">Foto aguardando sinal</div>':`<img src="${BLOB}${esc(f.id)}" alt="Foto ${i+1}">`}<input type="text" placeholder="Legenda" value="${esc(f.legenda||'')}" data-efl="${i}" aria-label="Legenda da foto"><button class="btn sm ghost danger" type="button" data-act="ae-foto-del" data-i="${i}">Remover</button></div>`),
+    ...S.edNovas.map((f,i)=>`<div class="f"><img src="${f.url}" alt="Foto nova ${i+1}"><input type="text" placeholder="Legenda" value="${esc(f.legenda||'')}" data-enl="${i}" aria-label="Legenda da foto"><button class="btn sm ghost danger" type="button" data-act="ae-nova-del" data-i="${i}">Remover</button></div>`)].join('')||'<p class="muted sm">Sem fotos.</p>'}
 function ocorCount(box){const n=[...box.querySelectorAll('details [data-o]')].filter(i=>i.value.trim()).length;const c=box.querySelector('[data-oc]');if(c){c.hidden=!n;c.textContent=n?plural(n,'item','itens'):''}}
 function syncFotos(){$$('[data-fl]').forEach(i=>{if(S.relFotos[+i.dataset.fl])S.relFotos[+i.dataset.fl].legenda=i.value});$$('[data-fv]').forEach(i=>{if(S.relFotos[+i.dataset.fv])S.relFotos[+i.dataset.fv].lavouraId=i.value})}
 function renderRelFotos(p){syncFotos();renderRelFotosRaw(p)}
@@ -1747,8 +1879,8 @@ async function salvarRelatorio(p){
   const btn=$('#r-save');btn.disabled=true;const lbl=btn.textContent;
   try{
     const data=$('#r-data').value||today(),tipo=$('#r-tipo').value,isVis=/visita|campo/i.test(tipo);
-    const obs=isVis?$$('#sec-lav [data-lav]').filter(b=>b.querySelector('[data-vist]').checked).map(b=>{const o={lavouraId:b.dataset.lav};b.querySelectorAll('[data-o]').forEach(i=>{const v=i.value.trim();if(v)o[i.dataset.o]=v});return o}):[];
-    const recs=$$('#r-recs .rec-ed').map(b=>lerRec(b,b.dataset.pre)).filter(r=>r.itens.length||r.alvo||r.obs);
+    const obs=isVis?lerObs($('#sec-lav')):[];
+    const recs=$$('#r-recs .rec-ed').map(b=>lerRec(b,b.dataset.pre)).filter(r=>r.itens.length||r.alvo||r.obs);const nn=await catalogarNovos(p,recs);
     const now=new Date().toISOString();
     const fotos=[],fotoOps=[];
     if(S.relFotos.length&&S.assets){
@@ -1775,7 +1907,7 @@ async function salvarRelatorio(p){
     if(isVis)for(const l of lembDe(p.id).filter(x=>!x.feito&&x.tipo==='Visita'&&x.data<=data))await LDB.doc('lembretes/'+l.id).update({feito:true,feitoEm:now,atendimentoId:aref.id});
     if(prox&&$('#r-lemb').checked)await LDB.collection('lembretes').add(clean({produtorId:p.id,tipo:'Visita',titulo:'Visita técnica',data:prox,obs:a.proximos_passos,origem:aref.id,feito:false,criadoEm:now,exemplo:p.exemplo||undefined}));
     S.relFotos.forEach(f=>URL.revokeObjectURL(f.url));S.relFotos=[];
-    toast(`Relatório salvo. ${recs.length?plural(recs.length,'recomendação criada','recomendações criadas')+'. ':''}${prox&&$('#r-lemb').checked?'Próxima visita em '+fmtBR(prox)+'.':''}`);
+    toast(`Relatório salvo. ${recs.length?plural(recs.length,'recomendação criada','recomendações criadas')+'. ':''}${prox&&$('#r-lemb').checked?'Próxima visita em '+fmtBR(prox)+'.':''}${novosTxt(nn)}`);
     $('#view').dataset.hold='';go('p-'+p.id+'--visitas');
     (function abrir(n){if(S.atend.some(x=>x.id===aref.id))enviarForm(aref.id);else if(n<8)setTimeout(()=>abrir(n+1),400)})(0);
   }catch(e){btn.disabled=false;btn.textContent=lbl;toast(e&&e.code==='quota_exceeded'?'A base atingiu o limite de registros.':'Não foi possível salvar o relatório. Tente de novo.')}
@@ -1890,19 +2022,20 @@ function recForm(pid,r){
    <div class="acts"><button class="btn pri" type="submit">${ed?'Salvar':'Criar recomendação'}</button>${ed?`<button class="btn sm" type="button" data-act="orc" data-id="${esc(r.id)}">Orçamento</button><span style="flex:1"></span><button class="btn sm danger" type="button" data-act="rec-del" data-id="${esc(r.id)}">Excluir</button>`:''}</div>`,
    async()=>{const d=lerRec($('#panel-f'),pre);if(!d.itens.length){toast('Informe pelo menos um produto.');return false}
      if(!d.titulo)d.titulo=ed&&r.tipo===d.tipo&&r.lavouraId===d.lavouraId?r.titulo:tituloAuto(pid,d);
-     const now=new Date().toISOString();
+     const now=new Date().toISOString();const nn=await catalogarNovos(p,[d]);
      if(ed){d.status=$('#rf-st').value;d.data_aplicacao=$('#rf-apl').value||(d.status==='Aplicada'?today():null);Object.assign(d,lerVenda());await LDB.doc('recomendacoes/'+r.id).set(clean({...r,...d,updatedAt:now}))}
      else await LDB.collection('recomendacoes').add(clean({...d,produtorId:pid,status:'Recomendada',status_comercial:'Em aberto',data_rec:today(),criadoEm:now,exemplo:p.exemplo||undefined}));
-     toast(ed?'Recomendação salva':'Recomendação criada')});
+     toast((ed?'Recomendação salva.':'Recomendação criada.')+novosTxt(nn))});
   const f=$('#panel-f');f.dataset.recRoot='1';f.dataset.pre=pre;f.dataset.pid=pid;recalcEditor(f);if(ed)syncVenda();
 }
 function vendaForm(rid){const r=S.recs.find(x=>x.id===rid);if(!r)return;const cr=calcRec(r);
   openPanel('Resultado comercial',`<div class="full rec" style="margin-bottom:4px"><div class="ttl">${esc(prodNome(r.produtorId))} · ${esc(r.titulo)}</div><div class="meta">${esc(cr.ctx.l?lavNome(cr.ctx.l):'Geral')} · ${esc(recResumo(r))}</div></div>${vendaCampos({...r,status_comercial:stc(r)==='Em aberto'||stc(r)==='Orçamento enviado'?'Vendida':stc(r)})}<div class="acts"><button class="btn pri" type="submit">Salvar</button></div>`,
    async()=>{const o=lerVenda();await LDB.doc('recomendacoes/'+r.id).update({...o,updatedAt:new Date().toISOString()});toast(o.status_comercial==='Vendida'?'Venda registrada: '+brl(o.valor_vendido):'Resultado salvo')});syncVenda()}
 async function salvarLavouras(p,lavs){const c2=lavs.map(l=>{const c=clean({...l,id:undefined});c.id=l.id;delete c._derivada;return c});await LDB.doc('produtores/'+p.id).update({lavouras:c2,culturas:[...new Set(c2.map(l=>cropNome(l)))],updatedAt:new Date().toISOString()})}
-function lavForm(pid,lid){
-  const p=S.prods.get(pid);if(!p)return;const lavs=lavouras(p);const l=lavs.find(x=>x.id===lid)||{};const ed=!!l.id;const k=cultKey(l.cultura);const C=CAL();
-  openPanel(ed?'Editar lavoura':'Nova lavoura',`
+function lavForm(pid,lid,fz){
+  const p=S.prods.get(pid);if(!p)return;const lavs=lavouras(p);const l=lavs.find(x=>x.id===lid)||{};const ed=!!l.id;const k=cultKey(l.cultura);const C=CAL();const fs=fazendas(p);
+  const fzSel=ed?fazDe(p,l).id:(fz||fs[0].id);
+  openPanel(ed?'Editar lavoura':'Nova lavoura',`${fs.length>1?`<label class="full" for="v-fz">Fazenda<select id="v-fz">${fs.map(f=>`<option value="${esc(f.id)}" ${fzSel===f.id?'selected':''}>${esc(f.nome||'Sem nome')}</option>`).join('')}</select></label>`:''}
    <label for="v-c">Cultura<select id="v-c">${Object.entries(C).map(([c,d])=>`<option value="${esc(c)}" ${k===c?'selected':''}>${esc(d.nome)}</option>`).join('')}<option value="outra" ${l.cultura&&!k?'selected':''}>Outra (sem calendário)</option></select></label>
    <label for="v-co" id="v-co-w">Qual cultura<input type="text" id="v-co" value="${esc(!k?l.cultura||'':'')}"></label>
    <label for="v-t">Talhão ou identificação<input type="text" id="v-t" value="${esc(l.talhao||'')}" placeholder="Ex.: Talhão da baixada"></label>
@@ -1913,19 +2046,22 @@ function lavForm(pid,lid){
    <label for="v-h" data-tp="anual">Colheita prevista<input type="date" id="v-h" value="${esc(l.colheita_prev||'')}"><span class="hint">Em branco, estima pelo ciclo.</span></label>
    <label for="v-m" data-tp="perene">Manejo<select id="v-m">${MANEJOS.map(m=>`<option ${(l.manejo||'Em produção')===m?'selected':''}>${m}</option>`).join('')}</select></label>
    <label for="v-el">Espaçamento entre linhas (m)<input type="text" inputmode="decimal" id="v-el" value="${esc(numBR(l.esp_linha))}"></label>
-   <label for="v-ep">Entre plantas (m)<input type="text" inputmode="decimal" id="v-ep" value="${esc(numBR(l.esp_planta))}"><span class="hint" id="v-pl"></span></label>
+   <label for="v-ep" data-tp="nao-anual">Entre plantas (m)<input type="text" inputmode="decimal" id="v-ep" value="${esc(numBR(l.esp_planta))}"></label>
+   <label for="v-pm" data-tp="anual">Plantas por metro linear<input type="text" inputmode="decimal" id="v-pm" value="${esc(numBR(+l.plantas_m>0?l.plantas_m:(+l.esp_planta>0?Math.round(10/l.esp_planta)/10:'')))}" placeholder="Ex.: 3,2"><span class="hint">Conte as plantas em 1 metro de linha. Usado nas doses por planta.</span></label>
+   <div class="full hint" id="v-pl"></div>
    <label for="v-vc" data-tp="leite">Vacas em lactação<input type="text" inputmode="numeric" id="v-vc" value="${esc(l.vacas||'')}"><span class="hint">Entra no potencial: vacas × custo por vaca (Ajustes).</span></label>
    <label class="full" for="v-o">Observações<textarea id="v-o" rows="2">${esc(l.obs||'')}</textarea></label>
    <div class="acts"><button class="btn pri" type="submit">${ed?'Salvar lavoura':'Adicionar lavoura'}</button>${ed?`<span style="flex:1"></span><button class="btn sm danger" type="button" data-act="lav-del" data-pid="${esc(pid)}" data-id="${esc(l.id)}">Remover lavoura</button>`:''}</div>`,
    async()=>{const ck=$('#v-c').value;const cultura=ck==='outra'?($('#v-co').value.trim()||'Outra'):C[ck].nome;const tipo=ck==='outra'?null:C[ck].tipo;
-     const d={...l,id:l.id&&!l._derivada?l.id:(l.id||rid('l')),cultura,talhao:$('#v-t').value.trim(),area_ha:num($('#v-a').value),variedade:$('#v-v').value.trim(),safra:$('#v-s').value.trim(),plantio:$('#v-p').value||null,colheita_prev:tipo==='anual'?($('#v-h').value||null):null,manejo:tipo==='perene'&&ck!=='leite'?$('#v-m').value:null,esp_linha:num($('#v-el').value),esp_planta:num($('#v-ep').value),vacas:ck==='leite'?num($('#v-vc').value):null,obs:$('#v-o').value.trim()};
+     const d={...l,id:l.id&&!l._derivada?l.id:(l.id||rid('l')),cultura,talhao:$('#v-t').value.trim(),area_ha:num($('#v-a').value),variedade:$('#v-v').value.trim(),safra:$('#v-s').value.trim(),plantio:$('#v-p').value||null,colheita_prev:tipo==='anual'?($('#v-h').value||null):null,manejo:tipo==='perene'&&ck!=='leite'?$('#v-m').value:null,esp_linha:num($('#v-el').value),esp_planta:tipo==='anual'?null:num($('#v-ep').value),plantas_m:tipo==='anual'?num($('#v-pm').value):null,fazendaId:$('#v-fz')?$('#v-fz').value:(l.fazendaId||fz||null),vacas:ck==='leite'?num($('#v-vc').value):null,obs:$('#v-o').value.trim()};
      if(ed&&cultKey(l.cultura)!==ck){delete d.fases;delete d.ciclo}
      await salvarLavouras(p,ed?lavs.map(x=>x.id===l.id?d:x):[...lavs,d]);toast(ed?'Lavoura salva':'Lavoura adicionada')});
   const sync=()=>{const c=$('#v-c').value,t=c==='outra'?null:C[c].tipo;$('#v-co-w').hidden=c!=='outra';
-    $$('#panel-f [data-tp]').forEach(el=>{const k2=el.dataset.tp;el.hidden=k2==='leite'?c!=='leite':k2==='perene'?!(t==='perene'&&c!=='leite'):t!==k2});
+    $$('#panel-f [data-tp]').forEach(el=>{const k2=el.dataset.tp;el.hidden=k2==='leite'?c!=='leite':k2==='perene'?!(t==='perene'&&c!=='leite'):k2==='nao-anual'?t==='anual':t!==k2});
     $('#v-p-l').textContent=t==='perene'?'Data de implantação':'Data de plantio';$('#v-p-h').textContent=t==='perene'?'Serve para saber a idade da lavoura.':'Define os dias após o plantio e o calendário.';
-    const a=num($('#v-el').value),b=num($('#v-ep').value);$('#v-pl').textContent=a&&b?nfmt(10000/(a*b),0)+' plantas/ha':''};
-  sync();$('#v-c').onchange=sync;$('#v-el').oninput=$('#v-ep').oninput=sync;
+    const a=num($('#v-el').value),b=num($('#v-ep').value),pm=num($('#v-pm').value);const ph=t==='anual'?(a&&pm?pm*10000/a:0):(a&&b?10000/(a*b):0);
+    $('#v-pl').textContent=ph?`População: ${nfmt(ph,0)} plantas/ha`+(t==='anual'?` (${nfmt(pm)} plantas/m × ${nfmt(10000/a,0)} m de linha por ha)`:` (10.000 ÷ ${nfmt(a)} ÷ ${nfmt(b)})`):''};
+  sync();$('#v-c').onchange=sync;$('#v-el').oninput=$('#v-ep').oninput=$('#v-pm').oninput=sync;
 }
 function estForm(pid,lid){
   const p=S.prods.get(pid),l=p&&lavouras(p).find(x=>x.id===lid);if(!l)return;const e=estInfo(l);const opts=estadiosDe(l);const dr=S.estDraft||{};S.estDraft=null;
@@ -1952,7 +2088,7 @@ function pickProd(k){
   const hoje=[...new Set(agendaItens().filter(i=>!i.feito&&i.data<=today()).map(i=>i.pid))];
   openPanel(QK[k][1]+': qual produtor?',`<div class="full qsearch" style="margin:0">${ic('busca',20)}<input type="search" id="pk-q" placeholder="Nome, apelido ou município" autocomplete="off" aria-label="Buscar produtor"></div><div class="full big-list" id="pk-l"></div>`,null);
   const draw=()=>{const q=norm($('#pk-q').value);let ps=[...S.prods.values()];
-    if(q)ps=ps.filter(p=>norm([p.nome,p.apelido,p.propriedade,p.municipio,p.codigo].join(' ')).includes(q));
+    if(q)ps=ps.filter(p=>norm([p.nome,p.apelido,p.propriedade,fzNomes(p),p.municipio,p.codigo].join(' ')).includes(q));
     ps.sort((a,b)=>(hoje.includes(b.id)-hoje.includes(a.id))||a.nome.localeCompare(b.nome,'pt'));
     $('#pk-l').innerHTML=ps.slice(0,30).map(p=>`<button type="button" class="pk" data-act="qk-go" data-k="${k}" data-pid="${esc(p.id)}"><span><b>${esc(p.nome)}${p.apelido?` <small style="display:inline">(${esc(p.apelido)})</small>`:''}</b><small>${esc([p.propriedade,p.municipio].filter(Boolean).join(' · '))}${hoje.includes(p.id)?' · <b style="color:var(--leaf)">na agenda de hoje</b>':''}</small></span></button>`).join('')+(ps.length>30?`<p class="muted sm">Mais ${ps.length-30}. Digite para filtrar.</p>`:'')||'<p class="muted">Ninguém encontrado.</p>'};
   draw();$('#pk-q').oninput=draw;
@@ -2396,7 +2532,22 @@ document.addEventListener('click',async ev=>{
     case 'rel-rec-add':addRelRec(S.prods.get(S.route.id));break;
     case 'rel-rec-del':t.closest('.rec-ed').remove();break;
     case 'foto-del':{const i=+t.dataset.i;syncFotos();URL.revokeObjectURL(S.relFotos[i].url);S.relFotos.splice(i,1);renderRelFotosRaw(S.prods.get(S.route.id));break}
-    case 'lav-nova':lavForm(pid);break;
+    case 'lav-nova':lavForm(pid,null,t.dataset.fz||null);break;
+    case 'faz-nova':fazForm(pid);break;
+    case 'faz-edit':fazForm(pid,id);break;
+    case 'faz-del':{if(!twice('fz'+id))break;const p=S.prods.get(pid);if(!p)break;const fs=fazendas(p).filter(f=>f.id!==id).map(f=>{const y={...f};delete y._derivada;return y});if(!fs.length)break;
+      const n=lavouras(p).filter(l=>fazDe(p,l).id===id).length;const lavs=lavouras(p).map(l=>{const c={...l};delete c._derivada;if(fazDe(p,l).id===id)c.fazendaId=fs[0].id;return c});
+      closePanel();await salvarFazendas(p,fs,lavs);toast('Fazenda removida.'+(n?` ${plural(n,'lavoura passou','lavouras passaram')} para ${fs[0].nome}.`:''));break}
+    case 'emb-add':$('#pd-embs').insertAdjacentHTML('beforeend',embRow());$('#pd-embs .emb-row:last-child [data-et]').focus();simEmb();break;
+    case 'emb-del':{const rows=$$('#pd-embs .emb-row');if(rows.length>1)t.closest('.emb-row').remove();else t.closest('.emb-row').querySelectorAll('input').forEach(i=>i.value='');simEmb();break}
+    case 'atend-edit':atendForm(id);break;
+    case 'atend-del':{if(!twice('ad'+id))break;const a=S.atend.find(x=>x.id===id);if(!a)break;closePanel();
+      await LDB.doc('atendimentos/'+id).delete();
+      for(const l of S.lemb.filter(x=>x.origem===id&&!x.feito))await LDB.doc('lembretes/'+l.id).delete();
+      const p=S.prods.get(a.produtorId);if(p&&p.ultimo_contato===a.data){const rest=atendDe(p.id).filter(x=>x.id!==id).map(x=>x.data).filter(Boolean).sort();const u=rest.pop()||null;if(u!==p.ultimo_contato)await LDB.doc('produtores/'+p.id).update({ultimo_contato:u})}
+      toast('Visita excluída. As recomendações dela continuam na aba Recomendações.');break}
+    case 'ae-foto-del':syncEd();S.edFotos.splice(+t.dataset.i,1);renderEdFotos();break;
+    case 'ae-nova-del':{syncEd();const f=S.edNovas.splice(+t.dataset.i,1)[0];if(f)URL.revokeObjectURL(f.url);renderEdFotos();break}
     case 'lav-edit':lavForm(pid,id);break;
     case 'lav-cal':lavCalForm(pid,id);break;
     case 'lavcal-reset':{const p=S.prods.get(pid);await salvarLavouras(p,lavouras(p).map(x=>{if(x.id!==id)return x;const c={...x};delete c.fases;delete c.ciclo;return c}));closePanel();toast('Calendário da lavoura voltou ao padrão');break}
@@ -2440,7 +2591,7 @@ document.addEventListener('click',async ev=>{
   }}catch(e){console.error(e);toast('Não foi possível concluir. Verifique se você tem permissão de edição.')}
 });
 function renderRelFotosRaw(p){const box=$('#r-fotos');if(!box)return;const lavs=lavouras(p);box.innerHTML=S.relFotos.map((f,i)=>`<div class="f"><img src="${f.url}" alt="Foto ${i+1}"><input type="text" placeholder="Legenda" value="${esc(f.legenda)}" data-fl="${i}" aria-label="Legenda da foto"><select data-fv="${i}" aria-label="Lavoura da foto"><option value="">Geral</option>${lavs.map(l=>`<option value="${esc(l.id)}" ${f.lavouraId===l.id?'selected':''}>${esc(lavNome(l))}</option>`).join('')}</select><button class="btn sm ghost danger" type="button" data-act="foto-del" data-i="${i}">Remover</button></div>`).join('')}
-document.addEventListener('input',ev=>{if(ev.target.id)syncChips(ev.target);const lo=ev.target.closest('.lav-obs');if(lo)ocorCount(lo);const root=ev.target.closest('[data-rec-root]');if(!root)return;if(ev.target.matches('[data-ip]'))autoFill(ev.target);recalcEditor(root)});
+document.addEventListener('input',ev=>{if(ev.target.id)syncChips(ev.target);if(ev.target.closest('#pd-embs')||['pd-sq','pd-p'].includes(ev.target.id))simEmb();const lo=ev.target.closest('.lav-obs');if(lo)ocorCount(lo);const root=ev.target.closest('[data-rec-root]');if(!root)return;if(ev.target.matches('[data-ip]'))autoFill(ev.target);recalcEditor(root)});
 document.addEventListener('change',ev=>{const root=ev.target.closest('[data-rec-root]');if(!root)return;if(ev.target.matches('[data-ip]'))autoFill(ev.target);recalcEditor(root)});
 $('#backdrop').addEventListener('click',closePanel);
 addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('#lb').hidden)$('#lb').hidden=true;else if(!$('#panel').hidden)closePanel()}});
@@ -2463,7 +2614,7 @@ function applyOp(m,o){
 function rebuild(col){const m=new Map(S.base[col]||[]);S.outbox.filter(o=>o.col===col).forEach(o=>applyOp(m,o));S.view[col]=m}
 function derive(){
   const V=c=>S.view[c]||new Map();
-  S.prods=V('produtores');S.atend=[...V('atendimentos').values()];S.recs=[...V('recomendacoes').values()];S.lemb=[...V('lembretes').values()];S.produtos=[...V('produtos').values()];
+  S.prods=V('produtores');S.prods.forEach(p=>{const fs=Array.isArray(p.fazendas)?p.fazendas:[];if(fs.length>1&&Array.isArray(p.lavouras))p.lavouras.forEach(l=>{const f=fs.find(x=>x.id===l.fazendaId)||fs[0];try{Object.defineProperty(l,'_fz',{value:f.nome,enumerable:false,configurable:true,writable:true})}catch(e){}})});S.atend=[...V('atendimentos').values()];S.recs=[...V('recomendacoes').values()];S.lemb=[...V('lembretes').values()];S.produtos=[...V('produtos').values()];
   const cf=V('config');S.cfgDoc=cf.get('geral')||null;S.calDoc=cf.get('calendarios')||null;S._cfg=S._cal=null;S._k=null;S._uso=null;
   const dl=$('#dl-prod');if(dl)dl.innerHTML=S.produtos.filter(p=>p.ativo!==false).map(p=>`<option value="${esc(p.nome)}">${esc([p.categoria,p.dose_padrao?p.dose_padrao+' '+(p.dose_unidade||''):''].filter(Boolean).join(' · '))}</option>`).join('');
 }
