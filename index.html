@@ -13,15 +13,15 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <script>
 /* Quando sai uma versão nova, apaga as cópias antigas do app guardadas no aparelho (não apaga fotos nem dados). */
-(function(){var B='20261124223134';try{var v=localStorage.getItem('crm-build'),forca=/[?&]limpar/.test(location.search);
+(function(){var B='20261124230339';try{var v=localStorage.getItem('crm-build'),forca=/[?&]limpar/.test(location.search);
 if(v===B&&!forca)return;localStorage.setItem('crm-build',B);if(v===null&&!forca)return;window.__RESET=true;
 var p=[];if(window.caches)p.push(caches.keys().then(function(ks){return Promise.all(ks.filter(function(k){return k.indexOf('crm-v')===0||k==='crm-auth'}).map(function(k){return caches.delete(k)}))}));
 if(navigator.serviceWorker)p.push(navigator.serviceWorker.getRegistrations().then(function(rs){return Promise.all(rs.map(function(r){return r.unregister()}))}));
 Promise.all(p).then(function(){location.replace(location.pathname+location.hash)},function(){location.replace(location.pathname+location.hash)});}catch(e){}})();
 </script>
-<script src="config.js?v=20261124223134"></script>
+<script src="config.js?v=20261124230339"></script>
 <script src="vendor/supabase.js"></script>
-<script src="shim.js?v=20261124223134"></script>
+<script src="shim.js?v=20261124230339"></script>
 </head>
 <body>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -356,6 +356,10 @@ code{font-size:.82rem;background:var(--sunk);padding:1px 5px;border-radius:4px}
 .empty p{margin:0 0 12px;color:var(--muted);max-width:62ch}
 @media (prefers-reduced-motion:no-preference){.panel{animation:slide .18s ease-out}@keyframes slide{from{transform:translateX(24px);opacity:.6}}}
 
+/* ===== v9: envio de várias e tanque ===== */
+.tq-sub{font-weight:700;font-size:.9rem;color:var(--leaf);margin:6px 0 0}
+.pk-chk input[type=checkbox]{flex:none;width:22px;height:22px}
+.pk-chk small+small{margin-top:2px}
 /* ===== v8: pulverizador e totais ===== */
 .spray{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;padding:12px;border-radius:12px;background:color-mix(in srgb,var(--leaf) 9%,var(--surface));border:1px solid color-mix(in srgb,var(--leaf) 25%,var(--line))}
 .spray .dline input{flex:0 1 110px}
@@ -916,14 +920,23 @@ function compra(pr,tot,u){let emb=null,valor=null,obs=null;
       if(valor==null&&+pr.preco>0)valor=(emb?emb.total:t2)*+pr.preco;}}
   return {emb,valor,obs}}
 const totalTxt=i=>i.erro?'quantidade não calculada: '+i.erro:`${fmtQ(i.tot,i.u)}${i.emb?' ('+embTxt(i.emb)+')':''}${i.obs?' · '+i.obs:''}`;
-const doseInfo=i=>i.erro?'':TANQUE.includes(i.unidade)?`${qTxt(i.porHa,i.u)}/ha`:i.tanque?`por tanque: ${qTxt(i.tanque.q,i.tanque.u)}`:'';
+const doseInfo=i=>i.erro?'':TANQUE.includes(i.unidade)?haTxt(i.porHa,i.u):i.tanque?`por tanque: ${qTxt(i.tanque.q,i.tanque.u)}`:'';
 /* soma os mesmos produtos de várias recomendações e recalcula as embalagens sobre o total */
 function consolidar(recs){const m=new Map(),out=[];
   recs.forEach(r=>calcRec(r).itens.forEach(i=>{if(i.erro){out.push(i);return}const k=(i.prod?i.prod.id:norm(i.produto))+'|'+i.u;const x=m.get(k);if(x)x.tot+=i.tot;else m.set(k,{produto:i.prod?i.prod.nome:i.produto,prod:i.prod,tot:i.tot,u:i.u})}));
   return [...[...m.values()].map(x=>({...x,...compra(x.prod,x.tot,x.u)})),...out]}
-function totaisItens(itens,valores){const L=[{h:'Quantidades totais'}];
-  itens.forEach(i=>L.push({li:`${i.produto}: ${totalTxt(i)}${valores&&i.valor!=null?' · '+brl(i.valor):''}`}));
-  if(valores){const vs=itens.map(i=>i.valor).filter(v=>v!=null);if(vs.length)L.push({p:`Total estimado: ${brl(vs.reduce((a,b)=>a+b,0))}${vs.length<itens.length?' (alguns itens sem preço)':''}`})}
+const UN_HA=['L/ha','mL/ha','kg/ha','g/ha','t/ha','un/ha'];
+const haTxt=(q,u)=>nfmt(arred(q))+' '+u+'/ha';
+/* o que vai no tanque e o equivalente por hectare (dose por ha escrita pelo consultor é mantida como está) */
+function doseCel(i){const escrito=`${i.dose||''} ${i.unidade||''}`.trim();
+  if(TANQUE.includes(i.unidade))return {tq:escrito,ha:i.porHa!=null&&!i.erro?haTxt(i.porHa,i.u):'-'};
+  if(i.tanque)return {tq:qTxt(i.tanque.q,i.tanque.u),ha:['L/ha','kg/ha','t/ha','un/ha'].includes(i.unidade)?escrito:haTxt(i.porHa,i.u)};
+  return {tq:'',ha:escrito}}
+function totaisItens(itens,valores){
+  const rows=itens.map(i=>[i.produto,i.erro?'não calculada':fmtQ(i.tot,i.u),i.erro?i.erro:([i.emb?embTxt(i.emb):'',i.obs||''].filter(Boolean).join(' · ')||'-'),...(valores?[i.valor!=null?brl(i.valor):'sem preço']:[])]);
+  const L=[{h:'Quantidades totais'},{tab:{cols:['Produto','Quantidade','Embalagens',...(valores?['Valor']:[])],w:valores?[.36,.16,.32,.16]:[.42,.18,.40],al:valores?['l','r','l','r']:['l','r','l'],rows,
+    wa:itens.map(i=>`• ${i.produto}: ${totalTxt(i)}${valores&&i.valor!=null?' · '+brl(i.valor):''}`)}}];
+  if(valores){const vs=itens.map(i=>i.valor).filter(v=>v!=null);if(vs.length)L.push({sub:`Total estimado: ${brl(vs.reduce((a,b)=>a+b,0))}${vs.length<itens.length?' (alguns itens sem preço)':''}`})}
   return L}
 function calcRec(r){const ctx=ctxRec(r);const itens=(r.itens||[]).filter(i=>i.produto).map(i=>({...i,...calcItem(i,ctx)}));
   const vs=itens.map(i=>i.valor).filter(v=>v!=null);return {ctx,itens,valor:vs.length?vs.reduce((a,b)=>a+b,0):null,completo:itens.length>0&&vs.length===itens.length}}
@@ -1535,7 +1548,7 @@ function recCard(p,r){
   const st=r.status||'Recomendada',cls=st==='Aplicada'?'ok':st==='Cancelada'?'':'leaf';
   return `<div class="rec ${st==='Aplicada'?'aplicada':''}"><div class="hd"><div class="ttl">${esc(r.titulo||r.tipo)}</div><div class="chips" style="margin:0"><span class="chip ${cls}">${esc(st)}</span>${stcChip(r)}</div></div>
    <div class="meta">Cultura: <b style="color:var(--ink)">${esc(l?lavNome(l):'geral')}</b>${cr.ctx.area?' · '+nfmt(cr.ctx.area)+' ha':''}${r.alvo?' · Alvo: '+esc(r.alvo):''}</div>
-   <ol>${cr.itens.map(i=>`<li>${esc(i.produto)}: <span class="dose">${esc(doseTxt(i,cr.ctx))}</span>${doseInfo(i)||i.erro?`<div class="q">${esc(i.erro||doseInfo(i))}</div>`:''}</li>`).join('')||'<li class="muted">Sem produtos</li>'}</ol>
+   ${(()=>{const cel=cr.itens.map(doseCel),comTq=!!cr.ctx.cap&&cel.some(c=>c.tq);return `${comTq?`<div class="tq-sub">Para tanque de ${nfmt(cr.ctx.cap)} litros utilizar:</div>`:''}<ol>${cr.itens.map((i,n)=>`<li>${esc(i.produto)}: <span class="dose">${esc(comTq&&cel[n].tq?cel[n].tq:cel[n].ha)}</span>${comTq&&cel[n].tq?` <span class="muted">· ${esc(cel[n].ha)}</span>`:''}${i.erro?`<div class="q">${esc(i.erro)}</div>`:''}</li>`).join('')||'<li class="muted">Sem produtos</li>'}</ol>`})()}
    <div class="meta">${esc([r.tipo,r.volume_calda?'Calda '+nfmt(r.volume_calda)+' L/ha':null,cr.ctx.cap?'Pulverizador '+nfmt(cr.ctx.cap)+' L':null,r.data_prevista?'Aplicar '+fmtBR(r.data_prevista):null,r.data_aplicacao?'Aplicada '+fmtBR(r.data_aplicacao):null].filter(Boolean).join(' · '))}</div>
    ${r.obs?`<div class="meta">${esc(r.obs)}</div>`:''}
    ${cr.itens.length?`<div class="tq-box"><div class="fl">Quantidades totais${cr.ctx.area?' · '+nfmt(cr.ctx.area)+' ha':''}</div><ul>${cr.itens.map(i=>`<li><b>${esc(i.produto)}</b>: ${esc(totalTxt(i))}</li>`).join('')}</ul></div>`:''}
@@ -1546,7 +1559,7 @@ function pRecs(p){
   const rs=recsDe(p.id).sort((a,b)=>(b.data_prevista||b.data_rec||'').localeCompare(a.data_prevista||a.data_rec||''));
   const lavs=lavouras(p);const grupos=lavs.map(l=>({l,rs:rs.filter(r=>r.lavouraId===l.id)})).filter(g=>g.rs.length);
   const soltas=rs.filter(r=>!lavs.some(l=>l.id===r.lavouraId));
-  $('#pbody').innerHTML=`<div class="sec-h"><h2>Recomendações técnicas</h2><button class="btn sm pri w" data-act="rec-nova" data-pid="${esc(p.id)}">${ic('plus',14)}Nova recomendação</button></div>
+  $('#pbody').innerHTML=`<div class="sec-h"><h2>Recomendações técnicas</h2><div class="row-btns">${rs.length?`<button class="btn sm leaf w" data-act="recs-enviar" data-pid="${esc(p.id)}">${ic('msg',14)}Enviar várias</button>`:''}<button class="btn sm pri w" data-act="rec-nova" data-pid="${esc(p.id)}">${ic('plus',14)}Nova recomendação</button></div></div>
    ${rs.length?`<div class="stack">${grupos.map(g=>{const e=estInfo(g.l);return `<div><h3 style="margin-bottom:8px"><span class="ico" style="background:${esc(cropCor(g.l))}"></span>${esc(lavNome(g.l))}${g.l.area_ha?' · '+nfmt(g.l.area_ha)+' ha':''} <span class="muted" style="font-weight:400">· ${esc(faseTexto(g.l))}${e.dap!=null&&e.dap>=0?' · '+e.dap+' DAP':''}</span></h3><div class="cards">${g.rs.map(r=>recCard(p,r)).join('')}</div></div>`}).join('')}${soltas.length?`<div><h3 style="margin-bottom:8px">Sem lavoura definida</h3><div class="cards">${soltas.map(r=>recCard(p,r)).join('')}</div></div>`:''}</div>`:'<div class="notice">Nenhuma recomendação registrada. Elas também são criadas pelo relatório de visita.</div>'}`;
 }
 /* --- visitas --- */
@@ -1980,30 +1993,42 @@ async function salvarRelatorio(p){
 /* ================= relatório para o produtor: texto e PDF ================= */
 function cabecalho(){const c=CFG();return [c.cooperativa,c.consultor?('Consultor: '+c.consultor+(c.crea?' · CREA '+c.crea:'')):null,c.telefone?('Contato: '+c.telefone):null].filter(Boolean)}
 function recModelo(p,r,valores,o={}){
-  const cr=calcRec(r);const l=cr.ctx.l;const its=[];
-  its.push({h:`${r.titulo||r.tipo} · ${l?lavNome(l):'Geral'}${cr.ctx.area?' ('+nfmt(cr.ctx.area)+' ha)':''}`});
-  const info=[r.alvo?'Alvo: '+r.alvo:null,r.volume_calda?'Calda: '+nfmt(r.volume_calda)+' L/ha':null,cr.ctx.cap?`Pulverizador: ${nfmt(cr.ctx.cap)} L${cr.ctx.calda?` (${tqHa(cr.ctx)})`:''}`:null,r.data_prevista?'Aplicar a partir de '+fmtBR(r.data_prevista):null].filter(Boolean);if(info.length)its.push({p:info.join(' · ')});
-  cr.itens.forEach((i,n)=>{const di=doseInfo(i);its.push({li:`${n+1}. ${i.produto}: ${doseTxt(i,cr.ctx)}${di?` (${di})`:''}`})});
+  const cr=calcRec(r),ctx=cr.ctx,l=ctx.l,its=[];
+  its.push({h:`${r.titulo||r.tipo} · ${l?lavNome(l):'Geral'}${ctx.area?' ('+nfmt(ctx.area)+' ha)':''}`});
+  const info=[r.alvo?'Alvo: '+r.alvo:null,r.volume_calda?'Calda: '+nfmt(r.volume_calda)+' L/ha':null,ctx.cap&&ctx.calda?`Pulverizador de ${nfmt(ctx.cap)} L: ${tqHa(ctx)}`:null,r.data_prevista?'Aplicar a partir de '+fmtBR(r.data_prevista):null].filter(Boolean);if(info.length)its.push({p:info.join(' · ')});
+  const cel=cr.itens.map(doseCel),comTq=!!ctx.cap&&cel.some(c=>c.tq);
+  if(comTq)its.push({sub:`Para tanque de ${nfmt(ctx.cap)} litros utilizar:`});
+  if(cr.itens.length)its.push({tab:{cols:comTq?['Produto',`Tanque de ${nfmt(ctx.cap)} L`,'Por hectare']:['Produto','Dose'],w:comTq?[.56,.22,.22]:[.66,.34],al:comTq?['l','r','r']:['l','r'],
+    rows:cr.itens.map((i,n)=>comTq?[`${n+1}. ${i.produto}`,cel[n].tq||'-',cel[n].ha]:[`${n+1}. ${i.produto}`,cel[n].ha]),
+    wa:cr.itens.map((i,n)=>`• ${i.produto}: ${comTq&&cel[n].tq?`*${cel[n].tq}* (${cel[n].ha})`:cel[n].ha}`)}});
   if(r.obs)its.push({p:'Obs.: '+r.obs});
-  if(o.totais!==false&&cr.itens.length)its.push(...totaisItens(cr.itens,valores));
+  if(o.totais===true&&cr.itens.length)its.push(...totaisItens(cr.itens,valores));
   return its;
 }
-function modeloRec(r,valores){const p=S.prods.get(r.produtorId);const l=lavouras(p).find(x=>x.id===r.lavouraId);const f=l?fazDe(p,l):null;
-  return {titulo:valores?'Orçamento':'Recomendação técnica',data:fmtBR(r.data_rec||today()),cab:cabecalho(),produtor:[`Produtor: ${p.nome}`,[f&&f.nome?f.nome:p.propriedade,f&&f.municipio?f.municipio:p.municipio].filter(Boolean).join(' · ')].filter(Boolean),
-    secoes:[{titulo:valores?'Recomendação e valores':'Recomendação',itens:recModelo(p,r,valores)}],fotos:[],rodape:valores?'Valores estimados, sujeitos a confirmação no pedido. Não substitui o receituário agronômico.':'Esta recomendação não substitui o receituário agronômico.'}}
+/* uma ou várias recomendações num documento só; quantidades do mesmo produto somadas no fim */
+function modeloRecs(p,recs,valores){
+  const lavs=lavouras(p);const fzs=[...new Set(recs.map(r=>{const l=lavs.find(x=>x.id===r.lavouraId);const f=l?fazDe(p,l):null;return f&&f.nome?f.nome:null}).filter(Boolean))];const f0=fazendas(p)[0]||{};
+  const local=[fzs.length?fzs.join(', '):p.propriedade,fzs.length===1?(fazendas(p).find(f=>f.nome===fzs[0])||{}).municipio||p.municipio:p.municipio].filter(Boolean).join(' · ');
+  const secoes=[{titulo:recs.length>1?'Recomendações':'Recomendação',itens:recs.flatMap(r=>recModelo(p,r,valores,{totais:false}))}];
+  const tot=consolidar(recs);if(tot.length)secoes.push({titulo:recs.length>1?'Quantidades totais (somadas)':'Quantidades totais',itens:totaisItens(tot,valores).slice(1)});
+  const d=recs.length===1?(recs[0].data_rec||today()):today();
+  return {titulo:valores?'Orçamento':(recs.length>1?'Recomendações técnicas':'Recomendação técnica'),data:fmtBR(d),cab:cabecalho(),produtor:[`Produtor: ${p.nome}`,local].filter(Boolean),secoes,fotos:[],
+    rodape:valores?'Valores estimados, sujeitos a confirmação no pedido. Não substitui o receituário agronômico.':'Esta recomendação não substitui o receituário agronômico.'}}
+function modeloRec(r,valores){return modeloRecs(S.prods.get(r.produtorId),[r],valores)}
+function modeloOrcamento(r){return modeloRec(r,true)}
 function modeloRelatorio(a,o={}){
   const p=S.prods.get(a.produtorId);const recs=S.recs.filter(r=>r.atendimentoId===a.id);
   const secoes=[];
   if((a.lavouras||[]).length)secoes.push({titulo:'Lavouras vistoriadas',itens:a.lavouras.map(x=>{const l=lavouras(p).find(z=>z.id===x.lavouraId);const e=l?estInfo(l):null;
     return {li:`${l?lavNome(l):'Lavoura'}${l&&l.area_ha?' ('+nfmt(l.area_ha)+' ha)':''}${e&&e.tipo==='anual'&&l.plantio?' · '+diffDays(a.data,l.plantio)+' dias após o plantio':''}: ${[x.estadio,x.condicao?'condição '+x.condicao.toLowerCase():null,x.manejo&&x.manejo!=='Em produção'?x.manejo.toLowerCase():null,x.pragas?'pragas: '+x.pragas:null,x.doencas?'doenças: '+x.doencas:null,x.daninhas?'daninhas: '+x.daninhas:null,x.nutricao?'nutrição: '+x.nutricao:null,x.obs].filter(Boolean).join('; ')||'vistoriada, sem ocorrências'}`}})});
   if(recs.length){secoes.push({titulo:o.valores?'Recomendações e orçamento':'Recomendações',itens:recs.flatMap(r=>recModelo(p,r,o.valores,{totais:false}))});
-    const tot=consolidar(recs);if(tot.length)secoes.push({titulo:recs.length>1?'Quantidades totais da visita':'Quantidades totais',itens:totaisItens(tot,o.valores).slice(1)})}
+    const tot=consolidar(recs);if(tot.length)secoes.push({titulo:recs.length>1?'Quantidades totais da visita (somadas)':'Quantidades totais',itens:totaisItens(tot,o.valores).slice(1)})}
   const fech=[];if(a.resumo&&o.resumo)fech.push({p:a.resumo});if(a.proximos_passos)fech.push({kv:['Próximo passo',a.proximos_passos]});if(a.proximo_contato)fech.push({kv:['Próxima visita',fmtBR(a.proximo_contato)]});
   if(fech.length)secoes.push({titulo:'Combinados',itens:fech});
   return {titulo:'Relatório de visita técnica',data:fmtBR(a.data),cab:cabecalho(),produtor:[`Produtor: ${p.nome}`,[p.propriedade,p.municipio].filter(Boolean).join(' · ')].filter(Boolean),secoes,fotos:(a.fotos||[]).filter(f=>f.id),rodape:'Este relatório não substitui o receituário agronômico.'};
 }
 function modeloOrcamento(r){return modeloRec(r,true)}
-function toWhats(m){const L=[`*${m.titulo}* · ${m.data}`,...m.produtor,...m.cab,''];m.secoes.forEach(s=>{L.push(`*${s.titulo.toUpperCase()}*`);s.itens.forEach(i=>{if(i.h)L.push('*'+i.h+'*');else if(i.li)L.push('• '+i.li);else if(i.kv)L.push(`*${i.kv[0]}:* ${i.kv[1]}`);else if(i.p)L.push(i.p)});L.push('')});L.push('_'+m.rodape+'_');return L.join('\n')}
+function toWhats(m){const L=[`*${m.titulo}* · ${m.data}`,...m.produtor,...m.cab,''];m.secoes.forEach(s=>{L.push(`*${s.titulo.toUpperCase()}*`);s.itens.forEach(i=>{if(i.h)L.push('*'+i.h+'*');else if(i.sub)L.push('*'+i.sub+'*');else if(i.tab)(i.tab.wa||[]).forEach(x=>L.push(x));else if(i.li)L.push('• '+i.li);else if(i.kv)L.push(`*${i.kv[0]}:* ${i.kv[1]}`);else if(i.p)L.push(i.p)});L.push('')});L.push('_'+m.rodape+'_');return L.join('\n')}
 async function fotoData(id){const r=await fetch(BLOB+id);if(!r.ok)throw 0;const b=await r.blob();const bmp=await createImageBitmap(b);const s=Math.min(1,1100/Math.max(bmp.width,bmp.height));const c=document.createElement('canvas');c.width=Math.round(bmp.width*s);c.height=Math.round(bmp.height*s);c.getContext('2d').drawImage(bmp,0,0,c.width,c.height);return {d:c.toDataURL('image/jpeg',.82),w:c.width,h:c.height}}
 async function gerarPDF(m,fname,comFotos){
   const J=window.jspdf&&window.jspdf.jsPDF;if(!J){toast('O gerador de PDF ainda não carregou. Verifique a conexão e tente de novo.');return}
@@ -2013,9 +2038,22 @@ async function gerarPDF(m,fname,comFotos){
   doc.setFont('helvetica','normal');doc.setFontSize(9.5);if(m.cab.length)doc.text(m.cab.join('   '),Mg,19.5,{maxWidth:W-2*Mg});doc.setFontSize(11);doc.text(m.data,W-Mg,12,{align:'right'});
   y=35;
   const para=(t,{size=10,bold=false,indent=0,color=[22,33,28],gap=1.4}={})=>{doc.setFont('helvetica',bold?'bold':'normal');doc.setFontSize(size);doc.setTextColor(...color);const lines=doc.splitTextToSize(String(t),W-2*Mg-indent);const lh=size*0.43;lines.forEach(ln=>{ensure(lh+1);doc.text(ln,Mg+indent,y);y+=lh});y+=gap};
+  /* tabela com cabeçalho verde claro, linhas zebradas e quebra de página repetindo o cabeçalho */
+  const tabela=t=>{const tw=W-2*Mg,ws=t.w.map(f=>f*tw),pad=1.9,al=k=>t.al&&t.al[k]==='r';
+    const split=(cells,fs,bold)=>{doc.setFontSize(fs);return cells.map((c,k)=>{doc.setFont('helvetica',bold||k===0?'bold':'normal');return doc.splitTextToSize(String(c??''),ws[k]-2*pad)})};
+    const linha=(ls,fs,cor,fundo)=>{const lh=fs*0.43,h=Math.max(...ls.map(l=>l.length))*lh+2*pad;if(fundo){doc.setFillColor(...fundo);doc.rect(Mg,y,tw,h,'F')}doc.setTextColor(...cor);let x=Mg;
+      ls.forEach((l,k)=>{l.forEach((ln,j)=>doc.text(ln,al(k)?x+ws[k]-pad:x+pad,y+pad+lh*(j+0.78),al(k)?{align:'right'}:undefined));x+=ws[k]});return h};
+    const cab=()=>{const ls=split(t.cols,8.4,true);doc.setFont('helvetica','bold');doc.setFontSize(8.4);const h=linha(ls,8.4,[38,72,38],[226,238,224]);y+=h};
+    ensure(18);y+=0.5;cab();
+    t.rows.forEach((r,ri)=>{const fs=9.4;const ls=split(r,fs,false);const lh=fs*0.43,h=Math.max(...ls.map(l=>l.length))*lh+2*pad;
+      if(y+h>H-18){doc.addPage();y=Mg;cab()}
+      doc.setFontSize(fs);let x=Mg;if(ri%2){doc.setFillColor(246,248,245);doc.rect(Mg,y,tw,h,'F')}doc.setTextColor(22,33,28);
+      ls.forEach((l,k)=>{doc.setFont('helvetica',k===0?'bold':'normal');l.forEach((ln,j)=>doc.text(ln,al(k)?x+ws[k]-pad:x+pad,y+pad+lh*(j+0.78),al(k)?{align:'right'}:undefined));x+=ws[k]});
+      doc.setDrawColor(222,229,222);doc.line(Mg,y+h,Mg+tw,y+h);y+=h});
+    y+=3.5};
   m.produtor.forEach((t,i)=>para(t,{size:i?10:12,bold:!i,gap:.8}));y+=2;
   m.secoes.forEach(s=>{ensure(16);y+=2;doc.setDrawColor(213,221,214);doc.line(Mg,y,W-Mg,y);y+=6;para(s.titulo.toUpperCase(),{size:9,bold:true,color:[86,101,94],gap:2});
-    s.itens.forEach(i=>{if(i.h){y+=1;para(i.h,{size:11,bold:true,gap:1})}else if(i.li){ensure(6);doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(22,33,28);doc.text('-',Mg+1.5,y);para(i.li,{indent:5,gap:.9})}else if(i.kv)para(i.kv[0]+': '+i.kv[1],{gap:.9});else if(i.p)para(i.p,{gap:1.2})})});
+    s.itens.forEach(i=>{if(i.h){y+=4;para(i.h,{size:11.5,bold:true,gap:1.2})}else if(i.sub){para(i.sub,{size:10,bold:true,color:[38,72,38],gap:1.4})}else if(i.tab){tabela(i.tab)}else if(i.li){ensure(6);doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(22,33,28);doc.text('-',Mg+1.5,y);para(i.li,{indent:5,gap:.9})}else if(i.kv)para(i.kv[0]+': '+i.kv[1],{gap:.9});else if(i.p)para(i.p,{gap:1.2})})});
   if(comFotos&&m.fotos.length){ensure(20);y+=2;doc.setDrawColor(213,221,214);doc.line(Mg,y,W-Mg,y);y+=6;para('FOTOS',{size:9,bold:true,color:[86,101,94],gap:2});
     const cw=(W-2*Mg-6)/2;let col=0,rowH=0;
     for(const f of m.fotos){let im;try{im=await fotoData(f.id)}catch(e){continue}
@@ -2038,6 +2076,19 @@ function enviarForm(aid){
   const wa=()=>{$('#ev-wa').href=waLink(p,$('#ev-txt').value)};
   $('#ev-txt').value=gera();wa();$('#ev-val').onchange=$('#ev-res').onchange=()=>{$('#ev-txt').value=gera();wa()};$('#ev-txt').oninput=wa;
 }
+function enviarRecsForm(pid){
+  const p=S.prods.get(pid);if(!p)return;const rs=recsDe(pid).filter(r=>r.status!=='Cancelada').sort((a,b)=>(b.data_prevista||b.data_rec||'').localeCompare(a.data_prevista||a.data_rec||''));
+  if(!rs.length){toast('Nenhuma recomendação para enviar.');return}
+  openPanel('Enviar recomendações',`<p class="full muted sm">Para ${esc(p.nome)}${p.telefone?' · '+esc(p.telefone):''}. Marque as que vão juntas numa mensagem só. O mesmo produto em várias recomendações é somado no fim, com as embalagens recalculadas sobre o total.</p>
+   <div class="full big-list" id="er-list">${rs.map(r=>{const l=lavouras(p).find(x=>x.id===r.lavouraId);const on=r.status==='Recomendada'&&['Em aberto','Orçamento enviado'].includes(stc(r));
+     return `<label class="pk pk-chk"><input type="checkbox" data-rsel value="${esc(r.id)}" ${on?'checked':''}><span><b>${esc(r.titulo||r.tipo)}</b><small>${esc([l?lavNome(l):'Geral',r.data_prevista?'aplicar '+fmtBR(r.data_prevista):null,r.status||'Recomendada',stc(r)].filter(Boolean).join(' · '))}</small><small>${esc(recResumo(r))}</small></span></label>`}).join('')}</div>
+   <label class="check full sm"><input type="checkbox" id="er-val"> Incluir valores (vira orçamento)</label>
+   <label class="full" for="ev-txt">Texto para WhatsApp<textarea id="ev-txt" rows="16"></textarea></label>
+   <div class="acts"><a class="btn leaf" id="ev-wa" href="#" target="_blank" rel="noopener">${ic('wa',14)}WhatsApp</a><button type="button" class="btn" data-act="copy-ev">${ic('msg',14)}Copiar</button><button type="button" class="btn pri" data-act="pdf-recs" data-pid="${esc(pid)}">${ic('file',14)}Baixar PDF</button><button type="button" class="btn" id="er-orc" data-act="orcs-enviados" hidden>Marcar orçamentos enviados</button></div>`,null);
+  const upd=()=>{const s2=recsSel(),v=$('#er-val').checked;$('#ev-txt').value=s2.length?toWhats(modeloRecs(p,s2,v)):'';$('#ev-wa').href=waLink(p,$('#ev-txt').value);$('#er-orc').hidden=!v||!s2.some(r=>stc(r)==='Em aberto');$('#panel-t').textContent=v?'Orçamento das recomendações':'Enviar recomendações'};
+  upd();$('#er-list').onchange=upd;$('#er-val').onchange=upd;$('#ev-txt').oninput=()=>{$('#ev-wa').href=waLink(p,$('#ev-txt').value)};
+}
+const recsSel=()=>$$('#er-list [data-rsel]:checked').map(i=>S.recs.find(r=>r.id===i.value)).filter(Boolean);
 function enviarRecForm(rid,valores){
   const r=S.recs.find(x=>x.id===rid);if(!r)return;const p=S.prods.get(r.produtorId);if(!p)return;
   openPanel(valores?'Orçamento da recomendação':'Enviar recomendação ao produtor',`<p class="full muted sm">Para ${esc(p.nome)}${p.telefone?' · '+esc(p.telefone):''}. Revise o texto e mande pelo WhatsApp, ou baixe o PDF para anexar.</p>
@@ -2600,6 +2651,9 @@ document.addEventListener('click',async ev=>{
     case 'pdf-ev':{const at=S.atend.find(x=>x.id===id);if(!at)break;t.disabled=true;const p=S.prods.get(at.produtorId);const fo=$('#ev-fotos');await gerarPDF(modeloRelatorio(at,{valores:$('#ev-val').checked,resumo:$('#ev-res').checked}),`relatorio_${slug(p.nome)}_${at.data}.pdf`,fo?fo.checked:false);t.disabled=false;break}
     case 'pdf-orc':case 'pdf-rec':{const r=S.recs.find(x=>x.id===id);if(!r)break;const v=$('#er-val')?$('#er-val').checked:a==='pdf-orc';t.disabled=true;await gerarPDF(modeloRec(r,v),`${v?'orcamento':'recomendacao'}_${slug(prodNome(r.produtorId))}_${today()}.pdf`,false);t.disabled=false;break}
     case 'rec-enviar':enviarRecForm(id,false);break;
+    case 'recs-enviar':enviarRecsForm(pid);break;
+    case 'pdf-recs':{const s2=recsSel();if(!s2.length){toast('Marque pelo menos uma recomendação.');break}const p=S.prods.get(pid);const v=$('#er-val').checked;t.disabled=true;await gerarPDF(modeloRecs(p,s2,v),`${v?'orcamento':'recomendacoes'}_${slug(p.nome)}_${today()}.pdf`,false);t.disabled=false;break}
+    case 'orcs-enviados':{const s2=recsSel().filter(r=>stc(r)==='Em aberto');for(const r of s2)await LDB.doc('recomendacoes/'+r.id).update({status_comercial:'Orçamento enviado',data_venda:today()});toast(plural(s2.length,'recomendação marcada','recomendações marcadas')+' como orçamento enviado');t.hidden=true;break}
     case 'item-add':{const box=t.closest('.items').querySelector('[data-items]');box.insertAdjacentHTML('beforeend',itemRow());break}
     case 'item-del':{const box=t.closest('[data-items]');const root=box.closest('[data-rec-root]');if(box.children.length>1)t.closest('.item').remove();else t.closest('.item').querySelectorAll('input').forEach(i=>i.value='');if(root)recalcEditor(root);break}
     case 'rel-rec-add':addRelRec(S.prods.get(S.route.id));break;
