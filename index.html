@@ -13,15 +13,15 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <script>
 /* Quando sai uma versão nova, apaga as cópias antigas do app guardadas no aparelho (não apaga fotos nem dados). */
-(function(){var B='20261122195302';try{var v=localStorage.getItem('crm-build'),forca=/[?&]limpar/.test(location.search);
+(function(){var B='20261124223134';try{var v=localStorage.getItem('crm-build'),forca=/[?&]limpar/.test(location.search);
 if(v===B&&!forca)return;localStorage.setItem('crm-build',B);if(v===null&&!forca)return;window.__RESET=true;
 var p=[];if(window.caches)p.push(caches.keys().then(function(ks){return Promise.all(ks.filter(function(k){return k.indexOf('crm-v')===0||k==='crm-auth'}).map(function(k){return caches.delete(k)}))}));
 if(navigator.serviceWorker)p.push(navigator.serviceWorker.getRegistrations().then(function(rs){return Promise.all(rs.map(function(r){return r.unregister()}))}));
 Promise.all(p).then(function(){location.replace(location.pathname+location.hash)},function(){location.replace(location.pathname+location.hash)});}catch(e){}})();
 </script>
-<script src="config.js?v=20261122195302"></script>
+<script src="config.js?v=20261124223134"></script>
 <script src="vendor/supabase.js"></script>
-<script src="shim.js?v=20261122195302"></script>
+<script src="shim.js?v=20261124223134"></script>
 </head>
 <body>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -356,6 +356,13 @@ code{font-size:.82rem;background:var(--sunk);padding:1px 5px;border-radius:4px}
 .empty p{margin:0 0 12px;color:var(--muted);max-width:62ch}
 @media (prefers-reduced-motion:no-preference){.panel{animation:slide .18s ease-out}@keyframes slide{from{transform:translateX(24px);opacity:.6}}}
 
+/* ===== v8: pulverizador e totais ===== */
+.spray{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;padding:12px;border-radius:12px;background:color-mix(in srgb,var(--leaf) 9%,var(--surface));border:1px solid color-mix(in srgb,var(--leaf) 25%,var(--line))}
+.spray .dline input{flex:0 1 110px}
+.rtotal{display:block}
+.rtotal .rt-h{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.rtotal .rt-l{margin:8px 0 0;padding-left:18px;font-weight:400;font-size:.92rem}.rtotal .rt-l li{margin:3px 0}
+.tq-box{border-top:1px dashed var(--line);padding-top:8px;font-size:.92rem}.tq-box ul{margin:4px 0 0;padding-left:18px}
 /* ===== v7: embalagens, fazendas, visitas ===== */
 .emb-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) auto;gap:6px;margin-top:6px}
 .emb-sim{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:10px;padding:10px 12px;border-radius:10px;background:color-mix(in srgb,var(--leaf) 10%,var(--surface))}
@@ -608,7 +615,14 @@ const GRUPOS={
  desenvolver:{nome:'Desenvolver',desc:'Potencial menor e compra pouco na cooperativa.',acao:'Contato mínimo. Investir tempo só se houver sinal de crescimento.'}
 };
 const MANEJOS=['Em produção','Esqueletada','Safra zero','Decotada','Recepada','Em formação'];
-const UNIDADES=['L/ha','mL/ha','kg/ha','g/ha','t/ha','un/ha','% v/v','mL/100 L','L/100 L','g/100 L','mL/kg sem.','g/kg sem.','kg/planta','g/planta','g/m linear'];
+/* "mL", "L", "g" e "kg" sozinhos = quantidade por tanque (capacidade do pulverizador informada na recomendação) */
+const UN_GRUPOS=[['Por hectare',['L/ha','mL/ha','kg/ha','g/ha','t/ha','un/ha']],['Por tanque (capacidade do pulverizador)',['mL','L','g','kg']],['Na calda',['% v/v']],['Por semente',['mL/kg sem.','g/kg sem.']],['Por planta ou linha',['kg/planta','g/planta','g/m linear']]];
+const UNIDADES=UN_GRUPOS.flatMap(g=>g[1]);
+const UN_ANTIGAS=['mL/100 L','L/100 L','g/100 L'];
+const TANQUE=['mL','L','g','kg'];
+const UN_CATALOGO=['L/ha','mL/ha','kg/ha','g/ha','t/ha','un/ha','% v/v','mL/100 L','L/100 L','g/100 L','mL/kg sem.','g/kg sem.','kg/planta','g/planta','g/m linear'];
+const SPRAY_T=['Pulverização','Adubação foliar','Outro'];
+const UN_SPRAY=['L/ha','mL/ha','kg/ha','g/ha','% v/v','mL','L','g','kg','mL/100 L','L/100 L','g/100 L'];
 const UN_VENDA=['L','kg','t','un'];
 const CATEGORIAS=['Fungicida','Inseticida','Herbicida','Acaricida','Nematicida','Adubo de solo','Adubo foliar','Corretivo','Semente','Inoculante','Adjuvante','Biológico','Nutrição animal','Saúde animal','Outro'];
 const REC_TIPOS=['Pulverização','Adubação de solo','Adubação foliar','Tratamento de sementes','Correção de solo','Nutrição animal','Outro'];
@@ -853,7 +867,24 @@ const stc=r=>r.status_comercial||'Em aberto';
 function produtoDe(it){if(!it)return null;if(it.produtoId){const p=S.produtos.find(x=>x.id===it.produtoId);if(p)return p}const n=norm(it.produto);return n?S.produtos.find(x=>norm(x.nome)===n)||null:null}
 function ctxRec(r){const p=S.prods.get(r.produtorId);const l=p&&r.lavouraId?lavouras(p).find(x=>x.id===r.lavouraId):null;
   const area=(r.area_ha!=null&&r.area_ha!=='')?+r.area_ha:(l?+l.area_ha||0:0);
-  return {p,l,area,calda:+r.volume_calda||0,sem:+r.semente_kg_ha||0,plantas:l?plantasHa(l):0,mlin:l&&+l.esp_linha?10000/+l.esp_linha:0}}
+  const spray=!r.tipo||SPRAY_T.includes(r.tipo);
+  return {p,l,area,spray,calda:+r.volume_calda||0,cap:spray?+r.capacidade||0:0,sem:+r.semente_kg_ha||0,plantas:l?plantasHa(l):0,mlin:l&&+l.esp_linha?10000/+l.esp_linha:0}}
+/* dose → quantidade por hectare (em L ou kg) e o caminho de volta, para trocar de unidade sem refazer conta */
+function paraHa(d,un,ctx){switch(un){
+  case 'L/ha':return {q:d,f:'L'};case 'mL/ha':return {q:d/1000,f:'L'};case 'kg/ha':return {q:d,f:'kg'};case 'g/ha':return {q:d/1000,f:'kg'};
+  case '% v/v':return ctx.calda?{q:d/100*ctx.calda,f:'L'}:null;
+  case 'mL/100 L':return ctx.calda?{q:d/1000*ctx.calda/100,f:'L'}:null;case 'L/100 L':return ctx.calda?{q:d*ctx.calda/100,f:'L'}:null;case 'g/100 L':return ctx.calda?{q:d/1000*ctx.calda/100,f:'kg'}:null;
+  case 'mL':case 'L':case 'g':case 'kg':{if(!ctx.calda||!ctx.cap)return null;const m=(un==='mL'||un==='g')?1/1000:1;return {q:d*m*ctx.calda/ctx.cap,f:(un==='mL'||un==='L')?'L':'kg'}}
+  default:return null}}
+function deHa(q,f,un,ctx){const fam=/^(L\/ha|mL\/ha|% v\/v|mL\/100 L|L\/100 L|mL|L)$/.test(un)?'L':/^(kg\/ha|g\/ha|g\/100 L|g|kg)$/.test(un)?'kg':null;if(fam!==f)return null;
+  switch(un){case 'L/ha':case 'kg/ha':return q;case 'mL/ha':case 'g/ha':return q*1000;
+    case '% v/v':return ctx.calda?q/ctx.calda*100:null;case 'L/100 L':return ctx.calda?q/ctx.calda*100:null;case 'mL/100 L':case 'g/100 L':return ctx.calda?q*1000/ctx.calda*100:null;
+    case 'mL':case 'g':return ctx.calda&&ctx.cap?q*1000*ctx.cap/ctx.calda:null;case 'L':case 'kg':return ctx.calda&&ctx.cap?q*ctx.cap/ctx.calda:null}return null}
+const arred=x=>{const a=Math.abs(x);const dec=a>=100?0:a>=10?1:a>=1?2:3;return Math.round(x*10**dec)/10**dec};
+const qTxt=(q,u)=>u==='L'&&q<1?nfmt(arred(q*1000))+' mL':u==='kg'&&q<1?nfmt(arred(q*1000))+' g':nfmt(arred(q))+' '+u;
+const tqHa=ctx=>{const k=ctx.calda/ctx.cap;return k>=1?`${nfmt(arred(k))} ${k===1?'tanque':'tanques'} por ha`:`1 tanque cobre ${nfmt(arred(1/k))} ha`};
+const tanquesTxt=(ctx)=>ctx.cap&&ctx.calda?`${nfmt(ctx.calda)} L/ha com pulverizador de ${nfmt(ctx.cap)} L: ${tqHa(ctx)}${ctx.area?` · ${nfmt(ctx.area)} ha → ${nfmt(Math.ceil(ctx.calda*ctx.area/ctx.cap-1e-9))} ${Math.ceil(ctx.calda*ctx.area/ctx.cap-1e-9)===1?'tanque':'tanques'} no total`:''}`:'';
+const doseTxt=(i,ctx)=>`${i.dose||''} ${i.unidade||''}${TANQUE.includes(i.unidade)&&ctx&&ctx.cap?` por tanque de ${nfmt(ctx.cap)} L`:''}`.trim();
 function calcItem(it,ctx){
   const d=num(it.dose),out={prod:produtoDe(it)};
   if(d==null)return {...out,erro:'informe a dose'};if(!ctx.area)return {...out,erro:'informe a área'};
@@ -866,6 +897,7 @@ function calcItem(it,ctx){
     case 'mL/100 L':need(ctx.calda,'informe a calda');tot=d/1000*ctx.calda/100*A;u='L';break;
     case 'L/100 L':need(ctx.calda,'informe a calda');tot=d*ctx.calda/100*A;u='L';break;
     case 'g/100 L':need(ctx.calda,'informe a calda');tot=d/1000*ctx.calda/100*A;u='kg';break;
+    case 'mL':case 'L':case 'g':case 'kg':need(ctx.calda,'informe o volume de calda (L/ha)');need(ctx.cap,'informe a capacidade do pulverizador');tot=d*((it.unidade==='mL'||it.unidade==='g')?1/1000:1)*ctx.calda/ctx.cap*A;u=(it.unidade==='mL'||it.unidade==='L')?'L':'kg';break;
     case 'mL/kg sem.':need(ctx.sem,'informe kg de semente/ha');tot=d/1000*ctx.sem*A;u='L';break;
     case 'g/kg sem.':need(ctx.sem,'informe kg de semente/ha');tot=d/1000*ctx.sem*A;u='kg';break;
     case 'kg/planta':need(ctx.plantas,'informe espaçamento e população da lavoura');tot=d*ctx.plantas*A;u='kg';break;
@@ -873,13 +905,26 @@ function calcItem(it,ctx){
     case 'g/m linear':need(ctx.mlin,'informe o espaçamento entre linhas');tot=d/1000*ctx.mlin*A;u='kg';break;
     default:return {...out,erro:'unidade sem cálculo'};
   }}catch(msg){return {...out,erro:msg}}
-  const pr=out.prod;let emb=null,valor=null,obs=null;
+  const porHa=tot/A;const tq=ctx.cap&&ctx.calda&&UN_SPRAY.includes(it.unidade)&&(u==='L'||u==='kg')?{q:porHa*ctx.cap/ctx.calda,u}:null;
+  return {...out,tot,u,porHa,tanque:tq,...compra(out.prod,tot,u)};
+}
+/* quanto comprar: converte para a unidade de venda e escolhe as embalagens */
+function compra(pr,tot,u){let emb=null,valor=null,obs=null;
   if(pr){const pu=pr.unidade||'L';let t2=null;
     if(u===pu)t2=tot;else if(u==='t'&&pu==='kg')t2=tot*1000;else if(u==='kg'&&pu==='t')t2=tot/1000;else obs=`produto vendido em ${pu}`;
     if(t2!=null){const es=embsDe(pr);if(es.length){emb=melhorMix(t2,es);emb.u=pu;valor=emb.valor}
       if(valor==null&&+pr.preco>0)valor=(emb?emb.total:t2)*+pr.preco;}}
-  return {...out,tot,u,emb,valor,obs};
-}
+  return {emb,valor,obs}}
+const totalTxt=i=>i.erro?'quantidade não calculada: '+i.erro:`${fmtQ(i.tot,i.u)}${i.emb?' ('+embTxt(i.emb)+')':''}${i.obs?' · '+i.obs:''}`;
+const doseInfo=i=>i.erro?'':TANQUE.includes(i.unidade)?`${qTxt(i.porHa,i.u)}/ha`:i.tanque?`por tanque: ${qTxt(i.tanque.q,i.tanque.u)}`:'';
+/* soma os mesmos produtos de várias recomendações e recalcula as embalagens sobre o total */
+function consolidar(recs){const m=new Map(),out=[];
+  recs.forEach(r=>calcRec(r).itens.forEach(i=>{if(i.erro){out.push(i);return}const k=(i.prod?i.prod.id:norm(i.produto))+'|'+i.u;const x=m.get(k);if(x)x.tot+=i.tot;else m.set(k,{produto:i.prod?i.prod.nome:i.produto,prod:i.prod,tot:i.tot,u:i.u})}));
+  return [...[...m.values()].map(x=>({...x,...compra(x.prod,x.tot,x.u)})),...out]}
+function totaisItens(itens,valores){const L=[{h:'Quantidades totais'}];
+  itens.forEach(i=>L.push({li:`${i.produto}: ${totalTxt(i)}${valores&&i.valor!=null?' · '+brl(i.valor):''}`}));
+  if(valores){const vs=itens.map(i=>i.valor).filter(v=>v!=null);if(vs.length)L.push({p:`Total estimado: ${brl(vs.reduce((a,b)=>a+b,0))}${vs.length<itens.length?' (alguns itens sem preço)':''}`})}
+  return L}
 function calcRec(r){const ctx=ctxRec(r);const itens=(r.itens||[]).filter(i=>i.produto).map(i=>({...i,...calcItem(i,ctx)}));
   const vs=itens.map(i=>i.valor).filter(v=>v!=null);return {ctx,itens,valor:vs.length?vs.reduce((a,b)=>a+b,0):null,completo:itens.length>0&&vs.length===itens.length}}
 const fmtQ=(t,u)=>nfmt(t,t<10?2:1)+' '+u;
@@ -903,7 +948,7 @@ function melhorMix(q,es){
   const total=itens.reduce((a,i)=>a+i.n*i.tam,0);
   return {itens,total,sobra:Math.max(0,total-q),nEmb:itens.reduce((a,i)=>a+i.n,0),valor:comPreco?itens.reduce((a,i)=>a+i.n*i.preco,0):null};
 }
-function itemCalcTxt(c){if(c.erro)return c.erro;return `total ${fmtQ(c.tot,c.u)}${c.emb?' · '+embTxt(c.emb):''}${c.valor!=null?' · '+brl(c.valor):''}${c.obs?' · '+c.obs:''}`}
+function itemCalcTxt(c){if(c.erro)return c.erro;const di=doseInfo(c);return `${di?di+' · ':''}total ${fmtQ(c.tot,c.u)}${c.emb?' · '+embTxt(c.emb):''}${c.valor!=null?' · '+brl(c.valor):''}${c.obs?' · '+c.obs:''}`}
 const valorRec=r=>stc(r)==='Vendida'&&+r.valor_vendido?+r.valor_vendido:(calcRec(r).valor||0);
 const oportunidades=()=>S.recs.filter(r=>r.status!=='Cancelada'&&['Em aberto','Orçamento enviado'].includes(stc(r)));
 
@@ -1288,7 +1333,7 @@ function prodForm(id){
     <div class="emb-sim"><label for="pd-sq">Testar: quantidade necessária</label><input type="text" inputmode="decimal" id="pd-sq" value="30"><b id="pd-sim"></b></div></div>
    <label for="pd-car">Carência (dias)<input type="text" inputmode="numeric" id="pd-car" value="${esc(p.carencia||'')}"></label>
    <label for="pd-d">Dose padrão<input type="text" inputmode="decimal" id="pd-d" value="${esc(p.dose_padrao||'')}"></label>
-   <label for="pd-du">Unidade da dose<select id="pd-du">${UNIDADES.map(u=>`<option ${p.dose_unidade===u?'selected':''}>${u}</option>`).join('')}</select></label>
+   <label for="pd-du">Unidade da dose<select id="pd-du">${UN_CATALOGO.map(u=>`<option ${p.dose_unidade===u?'selected':''}>${u}</option>`).join('')}</select></label>
    <div class="full fl">Culturas<div class="row-btns" style="margin-top:4px">${Object.values(C).map(c=>`<label class="check sm"><input type="checkbox" data-pc="${esc(c.nome)}" ${(p.culturas||[]).includes(c.nome)?'checked':''}>${esc(c.nome)}</label>`).join('')}</div></div>
    <label class="full" for="pd-a">Alvos e indicação<input type="text" id="pd-a" value="${esc(p.alvos||'')}" placeholder="Ex.: ferrugem e cercospora no café"></label>
    <label class="full" for="pd-o">Observações<textarea id="pd-o" rows="2">${esc(p.obs||'')}</textarea></label>
@@ -1490,11 +1535,12 @@ function recCard(p,r){
   const st=r.status||'Recomendada',cls=st==='Aplicada'?'ok':st==='Cancelada'?'':'leaf';
   return `<div class="rec ${st==='Aplicada'?'aplicada':''}"><div class="hd"><div class="ttl">${esc(r.titulo||r.tipo)}</div><div class="chips" style="margin:0"><span class="chip ${cls}">${esc(st)}</span>${stcChip(r)}</div></div>
    <div class="meta">Cultura: <b style="color:var(--ink)">${esc(l?lavNome(l):'geral')}</b>${cr.ctx.area?' · '+nfmt(cr.ctx.area)+' ha':''}${r.alvo?' · Alvo: '+esc(r.alvo):''}</div>
-   <ol>${cr.itens.map(i=>`<li>${esc(i.produto)}: <span class="dose">${esc(i.dose||'')} ${esc(i.unidade||'')}</span><div class="q">${esc(itemCalcTxt(i))}</div></li>`).join('')||'<li class="muted">Sem produtos</li>'}</ol>
-   <div class="meta">${esc([r.tipo,r.volume_calda?'Calda '+nfmt(r.volume_calda)+' L/ha':null,r.data_prevista?'Aplicar '+fmtBR(r.data_prevista):null,r.data_aplicacao?'Aplicada '+fmtBR(r.data_aplicacao):null].filter(Boolean).join(' · '))}</div>
+   <ol>${cr.itens.map(i=>`<li>${esc(i.produto)}: <span class="dose">${esc(doseTxt(i,cr.ctx))}</span>${doseInfo(i)||i.erro?`<div class="q">${esc(i.erro||doseInfo(i))}</div>`:''}</li>`).join('')||'<li class="muted">Sem produtos</li>'}</ol>
+   <div class="meta">${esc([r.tipo,r.volume_calda?'Calda '+nfmt(r.volume_calda)+' L/ha':null,cr.ctx.cap?'Pulverizador '+nfmt(cr.ctx.cap)+' L':null,r.data_prevista?'Aplicar '+fmtBR(r.data_prevista):null,r.data_aplicacao?'Aplicada '+fmtBR(r.data_aplicacao):null].filter(Boolean).join(' · '))}</div>
    ${r.obs?`<div class="meta">${esc(r.obs)}</div>`:''}
+   ${cr.itens.length?`<div class="tq-box"><div class="fl">Quantidades totais${cr.ctx.area?' · '+nfmt(cr.ctx.area)+' ha':''}</div><ul>${cr.itens.map(i=>`<li><b>${esc(i.produto)}</b>: ${esc(totalTxt(i))}</li>`).join('')}</ul></div>`:''}
    <div class="tot"><span>${stc(r)==='Vendida'?'Vendido':'Valor estimado'}</span><span>${cr.valor!=null||+r.valor_vendido?brl(valorRec(r)):'sem preço no catálogo'}</span></div>
-   <div class="row-btns w">${st==='Recomendada'?`<button class="btn sm" data-act="rec-aplicada" data-id="${esc(r.id)}">Aplicada</button>`:''}${['Em aberto','Orçamento enviado'].includes(stc(r))?`<button class="btn sm pri" data-act="venda" data-id="${esc(r.id)}">Registrar venda</button>`:''}<button class="btn sm ghost" data-act="orc" data-id="${esc(r.id)}">Orçamento</button><button class="btn sm ghost" data-act="rec-edit" data-id="${esc(r.id)}">Editar</button><button class="btn sm ghost" data-act="rec-dup" data-id="${esc(r.id)}">Duplicar</button></div></div>`;
+   <div class="row-btns w">${st==='Recomendada'?`<button class="btn sm" data-act="rec-aplicada" data-id="${esc(r.id)}">Aplicada</button>`:''}${['Em aberto','Orçamento enviado'].includes(stc(r))?`<button class="btn sm pri" data-act="venda" data-id="${esc(r.id)}">Registrar venda</button>`:''}<button class="btn sm leaf" data-act="rec-enviar" data-id="${esc(r.id)}">${ic('msg',14)}Enviar ao produtor</button><button class="btn sm ghost" data-act="orc" data-id="${esc(r.id)}">Orçamento</button><button class="btn sm ghost" data-act="rec-edit" data-id="${esc(r.id)}">Editar</button><button class="btn sm ghost" data-act="rec-dup" data-id="${esc(r.id)}">Duplicar</button></div></div>`;
 }
 function pRecs(p){
   const rs=recsDe(p.id).sort((a,b)=>(b.data_prevista||b.data_rec||'').localeCompare(a.data_prevista||a.data_rec||''));
@@ -1715,40 +1761,58 @@ function recEditorHTML(p,r,pre){
   return `<div class="full"><div class="fl">Tipo</div>${chips(REC_TIPOS,r.tipo||'Pulverização',{forId:pre+'tipo',hid:true,req:true,cls:'sm'})}</div>
    <label class="full" for="${pre}lav">Cultura e lavoura<select id="${pre}lav"><option value="">Geral</option>${lavs.map(l=>{const e=estInfo(l);return `<option value="${esc(l.id)}" ${r.lavouraId===l.id?'selected':''}>${esc(lavNome(l)+(l.area_ha?' · '+nfmt(l.area_ha)+' ha':'')+(e.dap!=null&&e.dap>=0?' · '+e.dap+' DAP':''))}</option>`}).join('')}</select></label>
    <div class="full"><div class="fl">Aplicar em</div>${dataChips(pre+'prev',r.data_prevista||'',[[0,'Hoje'],[1,'Amanhã'],[3,'Em 3 dias'],[7,'Em 7 dias']])}<span class="hint" data-dap-hint></span></div>
-   <div class="items full"><span class="fl">Produtos e doses</span><div class="fq" data-qprod></div><div data-items>${itens.map(i=>itemRow(i)).join('')}</div><div><button class="btn sm" type="button" data-act="item-add">${ic('plus',14)}Outro produto</button></div></div>
-   <div class="rtotal" data-rtotal></div>
+   <div class="full spray" data-spray>
+    <label for="${pre}calda">Volume de calda (L/ha)<input type="text" inputmode="decimal" id="${pre}calda" value="${esc(numBR(r.volume_calda))}" placeholder="Ex.: 200"></label>
+    <div><div class="fl">Capacidade do pulverizador (L)</div><div class="dline">${chips([[20,'Costal 20 L'],[200,'200 L'],[400,'400 L'],[600,'600 L'],[2000,'2.000 L']],r.capacidade!=null?r.capacidade:(r.id?'':ultimaCap()),{forId:pre+'cap',cls:'sm'})}<input type="text" inputmode="decimal" id="${pre}cap" value="${esc(numBR(r.capacidade!=null?r.capacidade:(r.id?'':ultimaCap())))}" placeholder="Ex.: 20" aria-label="Capacidade do pulverizador em litros" style="max-width:110px"></div></div>
+    <div class="hint" data-tq></div>
+   </div>
+   <div class="items full"><span class="fl">Produtos e doses</span><span class="hint" data-un-hint></span><div class="fq" data-qprod></div><div data-items>${itens.map(i=>itemRow(i)).join('')}</div><div><button class="btn sm" type="button" data-act="item-add">${ic('plus',14)}Outro produto</button></div></div>
    <label class="full" for="${pre}alvo">Alvo ou objetivo<input type="text" id="${pre}alvo" value="${esc(r.alvo||'')}" placeholder="Ex.: lagarta-do-cartucho e cigarrinha"></label>
-   <details class="more full"><summary>Área, calda, título e observações</summary><div class="in form">
+   <details class="more full"><summary>Área, semente, título e observações</summary><div class="in form">
    <label for="${pre}area">Área a aplicar (ha)<input type="text" inputmode="decimal" id="${pre}area" value="${esc(numBR(r.area_ha))}" placeholder="toda a lavoura"></label>
-   <label for="${pre}calda">Volume de calda (L/ha)<input type="text" inputmode="decimal" id="${pre}calda" value="${esc(numBR(r.volume_calda))}"></label>
    <label for="${pre}sem">Semente (kg/ha)<input type="text" inputmode="decimal" id="${pre}sem" value="${esc(numBR(r.semente_kg_ha))}"><span class="hint">Só para doses por kg de semente.</span></label>
    <label for="${pre}tit">Título<input type="text" id="${pre}tit" value="${esc(r.titulo||'')}" placeholder="Automático, ex.: Pulverização 2"></label>
    <label class="full" for="${pre}obs">Observações<textarea id="${pre}obs" rows="2" placeholder="Ex.: aplicar com tempo seco, intervalo de 15 dias para a próxima">${esc(r.obs||'')}</textarea></label>
-   </div></details>`;
+   </div></details>
+   <div class="rtotal" data-rtotal></div>`;
 }
+function ultimaCap(){const r=S.recs.filter(x=>+x.capacidade>0).sort((a,b)=>(b.criadoEm||'').localeCompare(a.criadoEm||''))[0];return r?+r.capacidade:''}
 function qprodHTML(l){
   const nm=l?cropNome(l):null;if(!S._uso)S._uso=usoProdutos();const u=S._uso;
   const list=S.produtos.filter(x=>x.ativo!==false&&x.nome&&(!nm||!(x.culturas||[]).length||(x.culturas||[]).some(c=>norm(c)===norm(nm)))).sort((a,b)=>((u[b.id]||{}).n||0)-((u[a.id]||{}).n||0)||a.nome.localeCompare(b.nome,'pt')).slice(0,8);
   return list.length?list.map(x=>`<button type="button" class="cb sm" data-act="qprod" data-v="${esc(x.nome)}" aria-pressed="false">${ic('plus',13)}${esc(x.nome)}</button>`).join(''):'';
 }
-function itemRow(i){i=i||{};return `<div class="item"><input type="text" placeholder="Produto" value="${esc(i.produto||'')}" data-ip list="dl-prod" aria-label="Produto"><input type="text" inputmode="decimal" placeholder="Dose" value="${esc(i.dose||'')}" data-dose aria-label="Dose"><select data-iu aria-label="Unidade">${UNIDADES.map(u=>`<option ${i.unidade===u?'selected':''}>${u}</option>`).join('')}</select><button class="btn sm ghost" type="button" data-act="item-del" aria-label="Remover produto">✕</button><div class="calc" data-calc></div></div>`}
+function unOpts(sel){const g=UN_GRUPOS.map(([n,us])=>`<optgroup label="${esc(n)}">${us.map(u=>`<option value="${esc(u)}" ${sel===u?'selected':''}>${esc(u)}</option>`).join('')}</optgroup>`).join('');return g+(UN_ANTIGAS.includes(sel)?`<optgroup label="Por 100 L de calda (antiga)"><option value="${esc(sel)}" selected>${esc(sel)}</option></optgroup>`:'')}
+function itemRow(i){i=i||{};return `<div class="item"><input type="text" placeholder="Produto" value="${esc(i.produto||'')}" data-ip list="dl-prod" aria-label="Produto"><input type="text" inputmode="decimal" placeholder="Dose" value="${esc(i.dose||'')}" data-dose aria-label="Dose"><select data-iu data-prev="${esc(i.unidade||'L/ha')}" aria-label="Unidade">${unOpts(i.unidade||'L/ha')}</select><button class="btn sm ghost" type="button" data-act="item-del" aria-label="Remover produto">✕</button><div class="calc" data-calc></div></div>`}
 function lerRec(root,pre){
   const g=s=>root.querySelector('#'+pre+s);
   const itens=[...root.querySelectorAll('[data-items] .item')].map(it=>{const o={produto:it.querySelector('[data-ip]').value.trim(),dose:it.querySelector('[data-dose]').value.trim(),unidade:it.querySelector('[data-iu]').value};const pr=produtoDe(o);if(pr)o.produtoId=pr.id;return o}).filter(i=>i.produto);
-  return {tipo:g('tipo').value,lavouraId:g('lav').value||null,titulo:g('tit').value.trim(),data_prevista:g('prev').value||null,alvo:g('alvo').value.trim(),area_ha:num(g('area').value),volume_calda:num(g('calda').value),semente_kg_ha:num(g('sem').value),itens,obs:g('obs').value.trim()};
+  return {tipo:g('tipo').value,lavouraId:g('lav').value||null,titulo:g('tit').value.trim(),data_prevista:g('prev').value||null,alvo:g('alvo').value.trim(),area_ha:num(g('area').value),volume_calda:num(g('calda').value),capacidade:num(g('cap').value),semente_kg_ha:num(g('sem').value),itens,obs:g('obs').value.trim()};
 }
 function recalcEditor(root){
   const pre=root.dataset.pre,pid=root.dataset.pid;if(!pre||!pid||!root.querySelector('#'+pre+'tipo'))return;
   const r={...lerRec(root,pre),produtorId:pid};const ctx=ctxRec(r);
-  const its=[...root.querySelectorAll('[data-items] .item')];let tot=0,okV=0,n=0;
+  const its=[...root.querySelectorAll('[data-items] .item')];let tot=0,okV=0,n=0;const calcs=[];
   its.forEach(it=>{const o={produto:it.querySelector('[data-ip]').value.trim(),dose:it.querySelector('[data-dose]').value.trim(),unidade:it.querySelector('[data-iu]').value};const el=it.querySelector('[data-calc]');
-    if(!o.produto){el.textContent='';return}n++;const c=calcItem(o,ctx);el.textContent=(c.prod?'':'fora do catálogo · ')+itemCalcTxt(c);el.classList.toggle('err',!!c.erro);if(c.valor!=null){tot+=c.valor;okV++}});
-  const t=root.querySelector('[data-rtotal]');if(t)t.innerHTML=`<span>${ctx.area?nfmt(ctx.area)+' ha':'Informe a área ou escolha a lavoura'}${ctx.calda?' · calda '+nfmt(ctx.calda)+' L/ha':''}</span><span>${n?(okV?'Total '+brl(tot)+(okV<n?' (parcial)':''):'sem preço no catálogo'):''}</span>`;
+    if(!o.produto){el.textContent='';return}n++;const c=calcItem(o,ctx);calcs.push({...o,...c});el.textContent=(c.prod?'':'fora do catálogo · ')+itemCalcTxt(c);el.classList.toggle('err',!!c.erro);if(c.valor!=null){tot+=c.valor;okV++}});
+  const sp=root.querySelector('[data-spray]');if(sp)sp.hidden=!ctx.spray;
+  const tq=root.querySelector('[data-tq]');if(tq)tq.textContent=ctx.spray?(tanquesTxt(ctx)||'Com calda e capacidade, a dose pode ser dada por tanque (mL, L, g ou kg na lista de unidades).'):'';
+  const uh=root.querySelector('[data-un-hint]');if(uh)uh.textContent=ctx.spray&&ctx.cap?` mL, L, g ou kg = por tanque de ${nfmt(ctx.cap)} L`:'';
+  const t=root.querySelector('[data-rtotal]');if(t)t.innerHTML=`<div class="rt-h"><span>Quantidades totais${ctx.area?' · '+nfmt(ctx.area)+' ha':''}</span><span>${n?(okV?brl(tot)+(okV<n?' (parcial)':''):'sem preço no catálogo'):''}</span></div>${!ctx.area?'<div class="rt-l muted">Informe a área ou escolha a lavoura.</div>':calcs.length?`<ul class="rt-l">${calcs.map(c=>`<li><b>${esc(c.produto)}</b> <span>${esc(totalTxt(c))}</span></li>`).join('')}</ul>`:''}`;
   const qb=root.querySelector('[data-qprod]');if(qb){const key=ctx.l?ctx.l.id:'-';if(qb.dataset.k!==key){qb.innerHTML=qprodHTML(ctx.l);qb.dataset.k=key}const nomes=new Set(its.map(it=>norm(it.querySelector('[data-ip]').value)).filter(Boolean));qb.querySelectorAll('[data-act=qprod]').forEach(b=>b.setAttribute('aria-pressed',nomes.has(norm(b.dataset.v))))}
   const h=root.querySelector('[data-dap-hint]');if(h){const l=ctx.l,d=root.querySelector('#'+pre+'prev').value;const e=l?estInfo(l):null;h.textContent=l&&e.tipo==='anual'&&l.plantio&&d?`${diffDays(d,l.plantio)} dias após o plantio`:''}
 }
-function autoFill(inp){const it=inp.closest('.item');if(!it)return;const pr=S.produtos.find(x=>norm(x.nome)===norm(inp.value));if(!pr)return;const d=it.querySelector('[data-dose]');if(!d.value&&pr.dose_padrao){d.value=pr.dose_padrao;if(pr.dose_unidade)it.querySelector('[data-iu]').value=pr.dose_unidade}}
-const unDaDose=u=>/^(L\/ha|mL\/ha|% v\/v|mL\/100 L|L\/100 L|mL\/kg sem\.)$/.test(u||'')?'L':u==='t/ha'?'t':u==='un/ha'?'un':'kg';
+function autoFill(inp){const it=inp.closest('.item');if(!it)return;const pr=S.produtos.find(x=>norm(x.nome)===norm(inp.value));if(!pr)return;const d=it.querySelector('[data-dose]');if(d.value||!pr.dose_padrao)return;
+  const sel=it.querySelector('[data-iu]');let dose=num(pr.dose_padrao),un=pr.dose_unidade||sel.value;
+  const root=inp.closest('[data-rec-root]');const ctx=root&&root.dataset.pre?ctxRec({...lerRec(root,root.dataset.pre),produtorId:root.dataset.pid}):null;
+  if(ctx&&ctx.spray&&ctx.cap&&ctx.calda&&dose!=null&&UN_SPRAY.includes(un)&&!TANQUE.includes(un)){const h=paraHa(dose,un,ctx);if(h){const q=h.q*ctx.cap/ctx.calda;const nu=h.f==='L'?(q<1?'mL':'L'):(q<1?'g':'kg');const v=deHa(h.q,h.f,nu,ctx);if(v!=null){dose=arred(v);un=nu}}}
+  d.value=dose!=null?numBR(dose):pr.dose_padrao;if(!sel.querySelector(`option[value="${CSS.escape(un)}"]`))sel.innerHTML=unOpts(un);sel.value=un;sel.dataset.prev=un}
+/* trocar a unidade converte a dose já digitada (ex.: 0,5 L/ha → 50 mL no tanque de 20 L com 200 L/ha) */
+function convUnidade(sel,root){const prev=sel.dataset.prev||'L/ha',nu=sel.value;sel.dataset.prev=nu;const it=sel.closest('.item'),d=it&&it.querySelector('[data-dose]');
+  if(d&&d.dataset.nova){delete d.dataset.nova;return}/* número recém-digitado: a unidade escolhida é a dele, não converte */
+  const v=d?num(d.value):null;if(v==null||prev===nu)return;
+  const ctx=ctxRec({...lerRec(root,root.dataset.pre),produtorId:root.dataset.pid});const h=paraHa(v,prev,ctx);if(!h)return;const x=deHa(h.q,h.f,nu,ctx);if(x==null)return;d.value=numBR(arred(x))}
+const unDaDose=u=>/^(L\/ha|mL\/ha|% v\/v|mL\/100 L|L\/100 L|mL\/kg sem\.|mL|L)$/.test(u||'')?'L':u==='t/ha'?'t':u==='un/ha'?'un':'kg';
 const CAT_DO_TIPO={'Adubação de solo':'Adubo de solo','Adubação foliar':'Adubo foliar','Tratamento de sementes':'Semente','Correção de solo':'Corretivo','Nutrição animal':'Nutrição animal'};
 /* produtos recomendados que não estão no catálogo entram nele (marcados para completar embalagem e preço) */
 async function catalogarNovos(p,recs){
@@ -1915,26 +1979,30 @@ async function salvarRelatorio(p){
 
 /* ================= relatório para o produtor: texto e PDF ================= */
 function cabecalho(){const c=CFG();return [c.cooperativa,c.consultor?('Consultor: '+c.consultor+(c.crea?' · CREA '+c.crea:'')):null,c.telefone?('Contato: '+c.telefone):null].filter(Boolean)}
-function recModelo(p,r,valores){
+function recModelo(p,r,valores,o={}){
   const cr=calcRec(r);const l=cr.ctx.l;const its=[];
   its.push({h:`${r.titulo||r.tipo} · ${l?lavNome(l):'Geral'}${cr.ctx.area?' ('+nfmt(cr.ctx.area)+' ha)':''}`});
-  const info=[r.alvo?'Alvo: '+r.alvo:null,r.volume_calda?'Calda: '+nfmt(r.volume_calda)+' L/ha':null,r.data_prevista?'Aplicar a partir de '+fmtBR(r.data_prevista):null].filter(Boolean);if(info.length)its.push({p:info.join(' · ')});
-  cr.itens.forEach((i,n)=>its.push({li:`${n+1}. ${i.produto}: ${i.dose||''} ${i.unidade||''}${i.tot!=null?` · total ${fmtQ(i.tot,i.u)}`:''}${i.emb?` (${embTxt(i.emb)})`:''}${valores&&i.valor!=null?` · ${brl(i.valor)}`:''}`}));
-  if(valores&&cr.valor!=null)its.push({p:`Total estimado: ${brl(cr.valor)}${cr.completo?'':' (alguns itens sem preço)'}`});
+  const info=[r.alvo?'Alvo: '+r.alvo:null,r.volume_calda?'Calda: '+nfmt(r.volume_calda)+' L/ha':null,cr.ctx.cap?`Pulverizador: ${nfmt(cr.ctx.cap)} L${cr.ctx.calda?` (${tqHa(cr.ctx)})`:''}`:null,r.data_prevista?'Aplicar a partir de '+fmtBR(r.data_prevista):null].filter(Boolean);if(info.length)its.push({p:info.join(' · ')});
+  cr.itens.forEach((i,n)=>{const di=doseInfo(i);its.push({li:`${n+1}. ${i.produto}: ${doseTxt(i,cr.ctx)}${di?` (${di})`:''}`})});
   if(r.obs)its.push({p:'Obs.: '+r.obs});
+  if(o.totais!==false&&cr.itens.length)its.push(...totaisItens(cr.itens,valores));
   return its;
 }
+function modeloRec(r,valores){const p=S.prods.get(r.produtorId);const l=lavouras(p).find(x=>x.id===r.lavouraId);const f=l?fazDe(p,l):null;
+  return {titulo:valores?'Orçamento':'Recomendação técnica',data:fmtBR(r.data_rec||today()),cab:cabecalho(),produtor:[`Produtor: ${p.nome}`,[f&&f.nome?f.nome:p.propriedade,f&&f.municipio?f.municipio:p.municipio].filter(Boolean).join(' · ')].filter(Boolean),
+    secoes:[{titulo:valores?'Recomendação e valores':'Recomendação',itens:recModelo(p,r,valores)}],fotos:[],rodape:valores?'Valores estimados, sujeitos a confirmação no pedido. Não substitui o receituário agronômico.':'Esta recomendação não substitui o receituário agronômico.'}}
 function modeloRelatorio(a,o={}){
   const p=S.prods.get(a.produtorId);const recs=S.recs.filter(r=>r.atendimentoId===a.id);
   const secoes=[];
   if((a.lavouras||[]).length)secoes.push({titulo:'Lavouras vistoriadas',itens:a.lavouras.map(x=>{const l=lavouras(p).find(z=>z.id===x.lavouraId);const e=l?estInfo(l):null;
     return {li:`${l?lavNome(l):'Lavoura'}${l&&l.area_ha?' ('+nfmt(l.area_ha)+' ha)':''}${e&&e.tipo==='anual'&&l.plantio?' · '+diffDays(a.data,l.plantio)+' dias após o plantio':''}: ${[x.estadio,x.condicao?'condição '+x.condicao.toLowerCase():null,x.manejo&&x.manejo!=='Em produção'?x.manejo.toLowerCase():null,x.pragas?'pragas: '+x.pragas:null,x.doencas?'doenças: '+x.doencas:null,x.daninhas?'daninhas: '+x.daninhas:null,x.nutricao?'nutrição: '+x.nutricao:null,x.obs].filter(Boolean).join('; ')||'vistoriada, sem ocorrências'}`}})});
-  if(recs.length)secoes.push({titulo:o.valores?'Recomendações e orçamento':'Recomendações',itens:recs.flatMap(r=>recModelo(p,r,o.valores))});
+  if(recs.length){secoes.push({titulo:o.valores?'Recomendações e orçamento':'Recomendações',itens:recs.flatMap(r=>recModelo(p,r,o.valores,{totais:false}))});
+    const tot=consolidar(recs);if(tot.length)secoes.push({titulo:recs.length>1?'Quantidades totais da visita':'Quantidades totais',itens:totaisItens(tot,o.valores).slice(1)})}
   const fech=[];if(a.resumo&&o.resumo)fech.push({p:a.resumo});if(a.proximos_passos)fech.push({kv:['Próximo passo',a.proximos_passos]});if(a.proximo_contato)fech.push({kv:['Próxima visita',fmtBR(a.proximo_contato)]});
   if(fech.length)secoes.push({titulo:'Combinados',itens:fech});
   return {titulo:'Relatório de visita técnica',data:fmtBR(a.data),cab:cabecalho(),produtor:[`Produtor: ${p.nome}`,[p.propriedade,p.municipio].filter(Boolean).join(' · ')].filter(Boolean),secoes,fotos:(a.fotos||[]).filter(f=>f.id),rodape:'Este relatório não substitui o receituário agronômico.'};
 }
-function modeloOrcamento(r){const p=S.prods.get(r.produtorId);return {titulo:'Orçamento',data:fmtBR(today()),cab:cabecalho(),produtor:[`Produtor: ${p.nome}`,[p.propriedade,p.municipio].filter(Boolean).join(' · ')].filter(Boolean),secoes:[{titulo:'Itens',itens:recModelo(p,r,true)}],fotos:[],rodape:'Valores estimados, sujeitos a confirmação no fechamento do pedido.'}}
+function modeloOrcamento(r){return modeloRec(r,true)}
 function toWhats(m){const L=[`*${m.titulo}* · ${m.data}`,...m.produtor,...m.cab,''];m.secoes.forEach(s=>{L.push(`*${s.titulo.toUpperCase()}*`);s.itens.forEach(i=>{if(i.h)L.push('*'+i.h+'*');else if(i.li)L.push('• '+i.li);else if(i.kv)L.push(`*${i.kv[0]}:* ${i.kv[1]}`);else if(i.p)L.push(i.p)});L.push('')});L.push('_'+m.rodape+'_');return L.join('\n')}
 async function fotoData(id){const r=await fetch(BLOB+id);if(!r.ok)throw 0;const b=await r.blob();const bmp=await createImageBitmap(b);const s=Math.min(1,1100/Math.max(bmp.width,bmp.height));const c=document.createElement('canvas');c.width=Math.round(bmp.width*s);c.height=Math.round(bmp.height*s);c.getContext('2d').drawImage(bmp,0,0,c.width,c.height);return {d:c.toDataURL('image/jpeg',.82),w:c.width,h:c.height}}
 async function gerarPDF(m,fname,comFotos){
@@ -1970,13 +2038,17 @@ function enviarForm(aid){
   const wa=()=>{$('#ev-wa').href=waLink(p,$('#ev-txt').value)};
   $('#ev-txt').value=gera();wa();$('#ev-val').onchange=$('#ev-res').onchange=()=>{$('#ev-txt').value=gera();wa()};$('#ev-txt').oninput=wa;
 }
-function orcForm(rid){
-  const r=S.recs.find(x=>x.id===rid);if(!r)return;const p=S.prods.get(r.produtorId);if(!p)return;const m=modeloOrcamento(r);
-  openPanel('Orçamento da recomendação',`<p class="full muted sm">${esc(p.nome)}${p.telefone?' · '+esc(p.telefone):''}. Quantidades calculadas pela dose e pela área; valores pelo preço de referência do catálogo.</p>
-   <label class="full" for="ev-txt">Texto para WhatsApp<textarea id="ev-txt" rows="14"></textarea></label>
-   <div class="acts"><a class="btn leaf" id="ev-wa" href="#" target="_blank" rel="noopener">${ic('wa',14)}WhatsApp</a><button type="button" class="btn" data-act="copy-ev">${ic('msg',14)}Copiar</button><button type="button" class="btn pri" data-act="pdf-orc" data-id="${esc(rid)}">${ic('file',14)}Baixar PDF</button>${stc(r)==='Em aberto'?`<button type="button" class="btn" data-act="orc-enviado" data-id="${esc(rid)}">Marcar orçamento enviado</button>`:''}</div>`,null);
-  $('#ev-txt').value=toWhats(m);const wa=()=>{$('#ev-wa').href=waLink(p,$('#ev-txt').value)};wa();$('#ev-txt').oninput=wa;
+function enviarRecForm(rid,valores){
+  const r=S.recs.find(x=>x.id===rid);if(!r)return;const p=S.prods.get(r.produtorId);if(!p)return;
+  openPanel(valores?'Orçamento da recomendação':'Enviar recomendação ao produtor',`<p class="full muted sm">Para ${esc(p.nome)}${p.telefone?' · '+esc(p.telefone):''}. Revise o texto e mande pelo WhatsApp, ou baixe o PDF para anexar.</p>
+   <label class="check full sm"><input type="checkbox" id="er-val" ${valores?'checked':''}> Incluir valores (vira orçamento)</label>
+   <label class="full" for="ev-txt">Texto para WhatsApp<textarea id="ev-txt" rows="16"></textarea></label>
+   <div class="acts"><a class="btn leaf" id="ev-wa" href="#" target="_blank" rel="noopener">${ic('wa',14)}WhatsApp</a><button type="button" class="btn" data-act="copy-ev">${ic('msg',14)}Copiar</button><button type="button" class="btn pri" data-act="pdf-rec" data-id="${esc(rid)}">${ic('file',14)}Baixar PDF</button>${stc(r)==='Em aberto'?`<button type="button" class="btn" id="er-orc" data-act="orc-enviado" data-id="${esc(rid)}">Marcar orçamento enviado</button>`:''}</div>`,null);
+  const wa=()=>{$('#ev-wa').href=waLink(p,$('#ev-txt').value)};
+  const upd=()=>{const v=$('#er-val').checked;$('#ev-txt').value=toWhats(modeloRec(r,v));wa();const b=$('#er-orc');if(b)b.hidden=!v;$('#panel-t').textContent=v?'Orçamento da recomendação':'Enviar recomendação ao produtor'};
+  upd();$('#er-val').onchange=upd;$('#ev-txt').oninput=wa;
 }
+const orcForm=rid=>enviarRecForm(rid,true);
 
 /* ================= painéis de formulário ================= */
 function openPanel(t,html,onSave){const f=$('#panel-f');delete f.dataset.recRoot;delete f.dataset.pre;delete f.dataset.pid;$('#panel-t').textContent=t;f.innerHTML=html;S.panelSave=onSave;$('#panel').hidden=false;$('#backdrop').hidden=false;$('#panel').scrollTop=0}
@@ -2024,7 +2096,7 @@ function recForm(pid,r){
      if(!d.titulo)d.titulo=ed&&r.tipo===d.tipo&&r.lavouraId===d.lavouraId?r.titulo:tituloAuto(pid,d);
      const now=new Date().toISOString();const nn=await catalogarNovos(p,[d]);
      if(ed){d.status=$('#rf-st').value;d.data_aplicacao=$('#rf-apl').value||(d.status==='Aplicada'?today():null);Object.assign(d,lerVenda());await LDB.doc('recomendacoes/'+r.id).set(clean({...r,...d,updatedAt:now}))}
-     else await LDB.collection('recomendacoes').add(clean({...d,produtorId:pid,status:'Recomendada',status_comercial:'Em aberto',data_rec:today(),criadoEm:now,exemplo:p.exemplo||undefined}));
+     else{const ref=LDB.collection('recomendacoes').doc();await ref.set(clean({...d,produtorId:pid,status:'Recomendada',status_comercial:'Em aberto',data_rec:today(),criadoEm:now,exemplo:p.exemplo||undefined}));setTimeout(()=>enviarRecForm(ref.id,false),60)}
      toast((ed?'Recomendação salva.':'Recomendação criada.')+novosTxt(nn))});
   const f=$('#panel-f');f.dataset.recRoot='1';f.dataset.pre=pre;f.dataset.pid=pid;recalcEditor(f);if(ed)syncVenda();
 }
@@ -2228,7 +2300,7 @@ function vozMeta(alvo,pid){
   const catalogo=S.produtos.filter(x=>x.ativo!==false&&x.nome).map(x=>({nome:x.nome,dose_padrao:x.dose_padrao||undefined,unidade:x.dose_unidade||undefined,culturas:(x.culturas||[]).join(', ')||undefined}));
   const T=(d,extra)=>Object.assign({type:'string',description:d},extra||{});
   const E=(arr,d)=>({type:'string',enum:arr,description:d||''});
-  const REC={type:'object',properties:{lavouraId:T('id exato da lavoura'),tipo:E(REC_TIPOS),data_prevista:T('AAAA-MM-DD'),alvo:T('alvo ou objetivo'),area_ha:{type:'number'},volume_calda:{type:'number',description:'L/ha'},
+  const REC={type:'object',properties:{lavouraId:T('id exato da lavoura'),tipo:E(REC_TIPOS),data_prevista:T('AAAA-MM-DD'),alvo:T('alvo ou objetivo'),area_ha:{type:'number'},volume_calda:{type:'number',description:'L/ha'},capacidade:{type:'number',description:'capacidade do pulverizador em litros (bomba costal = 20)'},
     itens:{type:'array',items:{type:'object',properties:{produto:T('nome exato do catálogo quando houver'),dose:{type:'number'},unidade:E(UNIDADES)},required:['produto']}},obs:T('observações de aplicação')}};
   const schema={type:'object',properties:{
     acao:E(['relatorio','recomendacao','lembrete','estadio','ficha','nada']),
@@ -2249,7 +2321,7 @@ Regras:
 - Converta datas faladas (hoje, ontem, amanhã, sexta, semana que vem, dia 20) para AAAA-MM-DD a partir de hoje. "Semana que vem" sem dia definido = hoje + 7 dias. "Daqui a 15 dias" = hoje + 15.
 - Use exatamente os ids de produtor e de lavoura fornecidos. Se não der para saber o produtor, deixe produtorId vazio.
 - Produtos: use o nome exato do catálogo quando o falado corresponder (ignore "(exemplo)" ao comparar, mas devolva o nome completo). Fora do catálogo, escreva como foi falado.
-- Doses: número com ponto decimal e unidade de uma das opções. "Meio litro por hectare" = 0.5 L/ha. "Meio por cento" de óleo = 0.5 % v/v. Sem dose falada, deixe sem dose.
+- Doses: número com ponto decimal e unidade de uma das opções. "Meio litro por hectare" = 0.5 L/ha. "Meio por cento" de óleo = 0.5 % v/v. Dose por bomba ou tanque ("100 mL na bomba de 20 litros", "1 litro no tanque de 200") = unidade mL, L, g ou kg sem "/ha" e capacidade com o tamanho do tanque. Sem dose falada, deixe sem dose.
 - Estádio: prefira o item de estadios_opcoes da lavoura com o mesmo sentido; se não houver, escreva como falado.
 - Pragas, doenças e daninhas: nomes separados por vírgula, com o detalhe falado (nível, porcentagem, talhão).
 - Textos em português do Brasil, curtos, sem travessões.
@@ -2269,7 +2341,7 @@ function vozRec(pid,v,cur){
   let lid=lidOk(pid,v.lavouraId)||base.lavouraId||null;if(!lid&&ls.length===1)lid=ls[0].id;
   const achar=n=>{const q=norm(n).replace(/\s*\(exemplo\)/,'');if(q.length<3)return null;return S.produtos.find(x=>norm(x.nome)===norm(n))||S.produtos.find(x=>norm(x.nome).replace(/\s*\(exemplo\)/,'')===q)||S.produtos.find(x=>q.length>=4&&(norm(x.nome).includes(q)||q.includes(norm(x.nome).replace(/\s*\(exemplo\)/,''))))};
   const itens=(v.itens||[]).filter(i=>i&&i.produto).map(i=>{const pr=achar(i.produto);return {produto:pr?pr.nome:i.produto,dose:i.dose!=null&&i.dose!==''?numBR(i.dose):(pr&&pr.dose_padrao)||'',unidade:UNIDADES.includes(i.unidade)?i.unidade:(pr&&pr.dose_unidade)||UNIDADES[0]}});
-  return {tipo:keep(base.tipo,REC_TIPOS.includes(v.tipo)?v.tipo:null)||'Pulverização',lavouraId:lid,titulo:base.titulo||'',data_prevista:keep(base.data_prevista,v.data_prevista)||today(),alvo:keep(base.alvo,v.alvo),area_ha:keep(base.area_ha,v.area_ha),volume_calda:keep(base.volume_calda,v.volume_calda),semente_kg_ha:base.semente_kg_ha,obs:[base.obs,v.obs].filter(Boolean).join(' '),itens:[...(base.itens||[]).filter(i=>i.produto),...itens]};
+  return {tipo:keep(base.tipo,REC_TIPOS.includes(v.tipo)?v.tipo:null)||'Pulverização',lavouraId:lid,titulo:base.titulo||'',data_prevista:keep(base.data_prevista,v.data_prevista)||today(),alvo:keep(base.alvo,v.alvo),area_ha:keep(base.area_ha,v.area_ha),volume_calda:keep(base.volume_calda,v.volume_calda),capacidade:keep(base.capacidade,v.capacidade),semente_kg_ha:base.semente_kg_ha,obs:[base.obs,v.obs].filter(Boolean).join(' '),itens:[...(base.itens||[]).filter(i=>i.produto),...itens]};
 }
 function vozAplicar(d,texto,ctx){
   d=d||{};const acao=ctx.alvo&&ctx.alvo!=='auto'?ctx.alvo:d.acao;
@@ -2526,7 +2598,8 @@ document.addEventListener('click',async ev=>{
     case 'enviar':enviarForm(id);break;
     case 'copy-ev':{const ta=$('#ev-txt');try{await navigator.clipboard.writeText(ta.value);toast('Texto copiado')}catch(e){ta.select();toast('Selecione e copie manualmente')}break}
     case 'pdf-ev':{const at=S.atend.find(x=>x.id===id);if(!at)break;t.disabled=true;const p=S.prods.get(at.produtorId);const fo=$('#ev-fotos');await gerarPDF(modeloRelatorio(at,{valores:$('#ev-val').checked,resumo:$('#ev-res').checked}),`relatorio_${slug(p.nome)}_${at.data}.pdf`,fo?fo.checked:false);t.disabled=false;break}
-    case 'pdf-orc':{const r=S.recs.find(x=>x.id===id);if(!r)break;t.disabled=true;await gerarPDF(modeloOrcamento(r),`orcamento_${slug(prodNome(r.produtorId))}_${today()}.pdf`,false);t.disabled=false;break}
+    case 'pdf-orc':case 'pdf-rec':{const r=S.recs.find(x=>x.id===id);if(!r)break;const v=$('#er-val')?$('#er-val').checked:a==='pdf-orc';t.disabled=true;await gerarPDF(modeloRec(r,v),`${v?'orcamento':'recomendacao'}_${slug(prodNome(r.produtorId))}_${today()}.pdf`,false);t.disabled=false;break}
+    case 'rec-enviar':enviarRecForm(id,false);break;
     case 'item-add':{const box=t.closest('.items').querySelector('[data-items]');box.insertAdjacentHTML('beforeend',itemRow());break}
     case 'item-del':{const box=t.closest('[data-items]');const root=box.closest('[data-rec-root]');if(box.children.length>1)t.closest('.item').remove();else t.closest('.item').querySelectorAll('input').forEach(i=>i.value='');if(root)recalcEditor(root);break}
     case 'rel-rec-add':addRelRec(S.prods.get(S.route.id));break;
@@ -2591,8 +2664,8 @@ document.addEventListener('click',async ev=>{
   }}catch(e){console.error(e);toast('Não foi possível concluir. Verifique se você tem permissão de edição.')}
 });
 function renderRelFotosRaw(p){const box=$('#r-fotos');if(!box)return;const lavs=lavouras(p);box.innerHTML=S.relFotos.map((f,i)=>`<div class="f"><img src="${f.url}" alt="Foto ${i+1}"><input type="text" placeholder="Legenda" value="${esc(f.legenda)}" data-fl="${i}" aria-label="Legenda da foto"><select data-fv="${i}" aria-label="Lavoura da foto"><option value="">Geral</option>${lavs.map(l=>`<option value="${esc(l.id)}" ${f.lavouraId===l.id?'selected':''}>${esc(lavNome(l))}</option>`).join('')}</select><button class="btn sm ghost danger" type="button" data-act="foto-del" data-i="${i}">Remover</button></div>`).join('')}
-document.addEventListener('input',ev=>{if(ev.target.id)syncChips(ev.target);if(ev.target.closest('#pd-embs')||['pd-sq','pd-p'].includes(ev.target.id))simEmb();const lo=ev.target.closest('.lav-obs');if(lo)ocorCount(lo);const root=ev.target.closest('[data-rec-root]');if(!root)return;if(ev.target.matches('[data-ip]'))autoFill(ev.target);recalcEditor(root)});
-document.addEventListener('change',ev=>{const root=ev.target.closest('[data-rec-root]');if(!root)return;if(ev.target.matches('[data-ip]'))autoFill(ev.target);recalcEditor(root)});
+document.addEventListener('input',ev=>{if(ev.target.id)syncChips(ev.target);if(ev.target.matches&&ev.target.matches('[data-dose]'))ev.target.dataset.nova='1';if(ev.target.closest('#pd-embs')||['pd-sq','pd-p'].includes(ev.target.id))simEmb();const lo=ev.target.closest('.lav-obs');if(lo)ocorCount(lo);const root=ev.target.closest('[data-rec-root]');if(!root)return;if(ev.target.matches('[data-ip]'))autoFill(ev.target);recalcEditor(root)});
+document.addEventListener('change',ev=>{const root=ev.target.closest('[data-rec-root]');if(!root)return;if(ev.target.matches('[data-ip]'))autoFill(ev.target);if(ev.target.matches('[data-iu]'))convUnidade(ev.target,root);recalcEditor(root)});
 $('#backdrop').addEventListener('click',closePanel);
 addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('#lb').hidden)$('#lb').hidden=true;else if(!$('#panel').hidden)closePanel()}});
 
