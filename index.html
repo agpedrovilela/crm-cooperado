@@ -13,15 +13,15 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <script>
 /* Quando sai uma versão nova, apaga as cópias antigas do app guardadas no aparelho (não apaga fotos nem dados). */
-(function(){var B='20261124230339';try{var v=localStorage.getItem('crm-build'),forca=/[?&]limpar/.test(location.search);
+(function(){var B='20261127215701';try{var v=localStorage.getItem('crm-build'),forca=/[?&]limpar/.test(location.search);
 if(v===B&&!forca)return;localStorage.setItem('crm-build',B);if(v===null&&!forca)return;window.__RESET=true;
 var p=[];if(window.caches)p.push(caches.keys().then(function(ks){return Promise.all(ks.filter(function(k){return k.indexOf('crm-v')===0||k==='crm-auth'}).map(function(k){return caches.delete(k)}))}));
 if(navigator.serviceWorker)p.push(navigator.serviceWorker.getRegistrations().then(function(rs){return Promise.all(rs.map(function(r){return r.unregister()}))}));
 Promise.all(p).then(function(){location.replace(location.pathname+location.hash)},function(){location.replace(location.pathname+location.hash)});}catch(e){}})();
 </script>
-<script src="config.js?v=20261124230339"></script>
+<script src="config.js?v=20261127215701"></script>
 <script src="vendor/supabase.js"></script>
-<script src="shim.js?v=20261124230339"></script>
+<script src="shim.js?v=20261127215701"></script>
 </head>
 <body>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -356,6 +356,66 @@ code{font-size:.82rem;background:var(--sunk);padding:1px 5px;border-radius:4px}
 .empty p{margin:0 0 12px;color:var(--muted);max-width:62ch}
 @media (prefers-reduced-motion:no-preference){.panel{animation:slide .18s ease-out}@keyframes slide{from{transform:translateX(24px);opacity:.6}}}
 
+/* ===== v10: ciclo, fases, calendário, movimento ===== */
+.cbar{position:relative;padding-top:18px}
+.cbar.sm{padding-top:3px}
+.cbar.ev{padding-bottom:16px}
+.cb-track{display:flex;gap:2px;height:14px;border-radius:99px;overflow:hidden;background:var(--line)}
+.cbar.sm .cb-track{height:8px}
+.cb-track i{display:block;height:100%;flex:none;background:color-mix(in srgb,var(--leaf) 16%,var(--surface))}
+.cb-track i.feita{background:color-mix(in srgb,var(--leaf) 45%,var(--surface))}
+.cb-track i.agora{background:var(--leaf)}
+.cb-track i.jan{box-shadow:inset 0 -3px 0 var(--maize)}
+.cbar.sm .cb-track i.jan{box-shadow:inset 0 -2px 0 var(--maize)}
+.cb-hoje{position:absolute;top:0;width:2px;height:calc(18px + 14px + 3px);background:var(--crit);transform:translateX(-1px);border-radius:2px}
+.cbar.sm .cb-hoje{height:14px}
+.cb-hoje em{position:absolute;top:-1px;left:50%;transform:translateX(-50%);font-style:normal;font-size:.66rem;font-weight:800;color:var(--crit);line-height:1;white-space:nowrap;background:var(--surface);padding:0 3px}
+.cbar.sm .cb-hoje em{display:none}
+.cb-ev{position:absolute;bottom:0;width:11px;height:11px;border-radius:50%;transform:translateX(-50%);border:2px solid var(--surface)}
+.cb-ev.aplicacao{background:var(--leaf)}.cb-ev.operacao{background:var(--maize)}.cb-ev.visita{background:var(--accent)}.cb-ev.relatorio{background:var(--ink);border-radius:2px}.cb-ev.feito{opacity:.45}
+.cb-eixo{display:flex;justify-content:space-between;font-size:.72rem;color:var(--muted);margin-top:4px}
+.cb-leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:.78rem;color:var(--muted);margin:6px 0 0}.cb-leg span{display:inline-flex;align-items:center;gap:5px}.cb-leg .cb-ev{position:static;transform:none;display:inline-block}
+.fases{list-style:none;margin:16px 0 0;padding:0}
+.fz{display:grid;grid-template-columns:28px minmax(0,1fr);gap:10px;position:relative;padding-bottom:14px}
+.fz:not(:last-child)::before{content:"";position:absolute;left:13px;top:28px;bottom:0;width:2px;background:var(--line)}
+.fz.feita:not(:last-child)::before{background:color-mix(in srgb,var(--leaf) 45%,var(--line))}
+.fz-dot{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.78rem;font-weight:800;background:var(--surface);border:2px solid var(--line);color:var(--muted);position:relative;z-index:1}
+.fz.feita .fz-dot{background:color-mix(in srgb,var(--leaf) 18%,var(--surface));border-color:color-mix(in srgb,var(--leaf) 45%,var(--line));color:var(--leaf)}
+.fz.agora .fz-dot{background:var(--leaf);border-color:var(--leaf);color:var(--leaf-ink);box-shadow:0 0 0 4px color-mix(in srgb,var(--leaf) 22%,transparent)}
+.fz-b{min-width:0;padding-top:3px}
+.fz.agora .fz-b{background:color-mix(in srgb,var(--leaf) 8%,var(--surface));border:1px solid color-mix(in srgb,var(--leaf) 30%,var(--line));border-radius:12px;padding:10px 12px;margin-top:-4px}
+.fz-t{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}.fz-t b{font-size:1rem}
+.fz.feita .fz-t b{color:var(--muted);font-weight:600}
+.fz-q{font-size:.84rem;color:var(--muted);margin-top:2px}.fz-q b{color:var(--ink)}
+.fz-prog{height:6px;border-radius:99px;background:color-mix(in srgb,var(--leaf) 15%,var(--surface));margin:8px 0 4px;overflow:hidden}.fz-prog i{display:block;height:100%;background:var(--leaf)}
+.fz-i{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:6px 14px;margin-top:6px;font-size:.92rem}.fz-i .lbl{display:block}
+.fz-d{margin-top:2px}.fz-d summary{cursor:pointer;color:var(--accent);font-size:.86rem;font-weight:600;min-height:32px;display:flex;align-items:center}
+.fz-a{margin-top:8px;align-items:center}
+.fz-mini{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;font-size:.88rem;margin:2px 0 6px}.fz-mini .cur{font-weight:700}.fz-mini .arr{color:var(--muted)}
+.est-leg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:.78rem;color:var(--muted);margin:2px 0 6px}
+.est-leg span::before{content:"";display:inline-block;width:12px;height:12px;border-radius:4px;margin-right:5px;vertical-align:-2px}
+.est-leg .l-esp::before{border:2px dashed var(--leaf)}.est-leg .l-ult::before{background:color-mix(in srgb,var(--maize) 30%,var(--surface));border:1px solid var(--maize)}
+.cb.esp{border:2px dashed var(--leaf)}
+.cb.ult[aria-pressed="false"]{background:color-mix(in srgb,var(--maize) 20%,var(--surface));border-color:var(--maize)}
+.cal-sel{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;scrollbar-width:thin}
+.cal-tab{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:8px 14px;font-weight:700;font-size:.92rem;min-height:40px;cursor:pointer;flex:none}
+.cal-tab small{background:var(--line);border-radius:99px;padding:1px 7px;font-size:.72rem}
+.cal-tab[aria-selected="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}.cal-tab[aria-selected="true"] small{background:color-mix(in srgb,var(--surface) 25%,transparent)}
+.cal-agora{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:12px 0 0}.cal-agora .lbl{width:100%}
+.cal-est{margin-top:12px}
+.ph-list{counter-reset:fase}
+.ph-row{position:relative;padding-top:30px!important}
+.ph-row::before{counter-increment:fase;content:"Fase " counter(fase);position:absolute;top:9px;left:10px;font-weight:800;font-size:.74rem;color:var(--leaf);text-transform:uppercase;letter-spacing:.05em}
+.ph-row.jan{border-left:4px solid var(--maize)}
+.av-tag{background:color-mix(in srgb,var(--warn,#b7791f) 16%,transparent);color:var(--warn,#8a5a12);border:1px dashed color-mix(in srgb,var(--warn,#b7791f) 55%,transparent)}
+.av-note{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:10px}
+@media (prefers-reduced-motion:no-preference){
+ #view.entra{animation:entra .2s ease-out}
+ @keyframes entra{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+ .btn,.qa,.cb,.pk,.cal-tab,.bnav a,.bnav button{transition:transform .08s ease,background-color .15s,border-color .15s}
+ .btn:active,.qa:active,.cb:active,.pk:active,.cal-tab:active,.bnav a:active,.bnav button:active{transform:scale(.96)}
+ details.more[open]>.in,.fz-d[open]>.fz-i{animation:entra .18s ease-out}
+}
 /* ===== v9: envio de várias e tanque ===== */
 .tq-sub{font-weight:700;font-size:.9rem;color:var(--leaf);margin:6px 0 0}
 .pk-chk input[type=checkbox]{flex:none;width:22px;height:22px}
@@ -803,6 +863,20 @@ function faseTexto(l){const e=estInfo(l);if(!e.f)return 'sem calendário';if(e.f
   if(e.tipo==='anual')return e.dap<0?`plantio em ${-e.dap} dias`:`${e.f.fase}`;return e.f.fase||''}
 function estadiosDe(l){const def=cropDef(l);if(!def)return [];return [...new Set([...(def.estadios||[]),...def.fases.map(f=>f.fase)])]}
 
+/* ===== ciclo da safra: barra sem texto + lista de fases (lê bem no celular) ===== */
+function cicloDados(l){const def=cropDef(l);if(!def)return null;const segs=def.tipo==='anual'?segmentos(l):segmentos(l,0);const j=janelaLav(l);if(!segs.length||!j)return null;
+  const t=today(),span=Math.max(1,diffDays(j.fim,j.ini));
+  return {def,j,span,t,segs:segs.map(x=>({...x,estado:t>=x.fim?'feita':t>=x.ini?'agora':'futura'})),pos:d=>Math.max(0,Math.min(100,diffDays(d,j.ini)/span*100)),hojeIn:t>=j.ini&&t<=j.fim}}
+function barraRaw(parts,hoje,o={}){
+  return `<div class="cbar${o.sm?' sm':''}${o.ev&&o.ev.length?' ev':''}"><div class="cb-track">${parts.map(x=>`<i class="${x.estado||''}${x.janela?' jan':''}" style="width:${x.w}%" title="${esc(x.t||'')}"></i>`).join('')}</div>${(o.ev||[]).map(x=>`<span class="cb-ev ${x.k} ${x.feito?'feito':''}" style="left:${x.pos}%" title="${esc(x.t)}"></span>`).join('')}${hoje!=null?`<span class="cb-hoje" style="left:${hoje}%"><em style="${hoje<8?'left:0;transform:none':hoje>92?'left:auto;right:0;transform:none':''}">hoje</em></span>`:''}</div>${o.eixo?`<div class="cb-eixo"><span>${esc(o.eixo[0])}</span><span>${esc(o.eixo[1])}</span></div>`:''}`}
+function cicloBar(c,o={}){return barraRaw(c.segs.map(x=>({w:Math.max(0,diffDays(x.fim,x.ini))/c.span*100,estado:x.estado,janela:x.janela,t:x.fase+': '+fmtBR(x.ini)+' a '+fmtBR(addDays(x.fim,-1))})),c.hojeIn?c.pos(c.t):null,{...o,eixo:o.eixo?[fmtCurto(c.j.ini),fmtCurto(c.j.fim)]:null})}
+const fzInfo=i=>i.foco||i.oferta?`<div class="fz-i">${i.foco?`<div><span class="lbl">Foco técnico</span>${esc(i.foco)}</div>`:''}${i.oferta?`<div><span class="lbl">O que oferecer</span>${esc(i.oferta)}</div>`:''}</div>`:'';
+function faseLista(items,o={}){return `<ol class="fases${o.cls?' '+o.cls:''}">${items.map((i,n)=>`<li class="fz ${i.estado||''}${i.janela?' jan':''}"><span class="fz-dot" aria-hidden="true">${i.estado==='feita'?'✓':n+1}</span><div class="fz-b">
+   <div class="fz-t"><b>${esc(i.fase)}</b>${i.estado==='agora'?'<span class="chip leaf">agora</span>':''}${i.janela?'<span class="chip warn">janela de manejo</span>':''}</div>
+   ${i.quando||i.falta?`<div class="fz-q">${esc(i.quando||'')}${i.falta?`${i.quando?' · ':''}<b>${esc(i.falta)}</b>`:''}</div>`:''}
+   ${i.pct!=null?`<div class="fz-prog" title="${Math.round(i.pct*100)}% da fase"><i style="width:${Math.round(Math.max(0,Math.min(1,i.pct))*100)}%"></i></div>`:''}
+   ${i.estado==='agora'||o.aberta?fzInfo(i):fzInfo(i)||i.acoesD?`<details class="fz-d"><summary>${i.acoesD?'Foco, oferta e ações':'Foco e o que oferecer'}</summary>${fzInfo(i)}${i.acoesD||''}</details>`:''}
+   ${i.acoes||''}</div></li>`).join('')}</ol>`}
 /* janelas de manejo: fases marcadas como janela que começam perto de hoje */
 function janelas(dias=7){
   const t=today(),lim=addDays(t,dias),ini=addDays(t,-5),out=[];
@@ -1005,7 +1079,7 @@ function agendaItens(opts={}){
     it.push({src:'lemb',id:l.id,k,data:l.data,hora:l.hora||'',pid:l.produtorId,lid:l.lavouraId,tit:l.titulo||(l.tipo==='Operação agrícola'?l.operacao:l.tipo)||'Lembrete',sub:l.obs||'',feito:!!l.feito,tipoNome:l.tipo==='Operação agrícola'?(l.operacao||'Operação'):l.tipo})});
   S.recs.forEach(r=>{if(!r.data_prevista||r.status==='Cancelada')return;const done=r.status!=='Recomendada';if(done&&!opts.feitos)return;
     it.push({src:'rec',id:r.id,k:'aplicacao',data:r.data_prevista,hora:'',pid:r.produtorId,lid:r.lavouraId,tit:r.titulo,sub:recResumo(r),feito:done,tipoNome:'Aplicação prevista'})});
-  return it.filter(i=>i.data).sort((a,b)=>a.data.localeCompare(b.data)||(a.hora||'').localeCompare(b.hora||''));
+  return it.filter(i=>i.data&&!ehAvulso(i.pid)).sort((a,b)=>a.data.localeCompare(b.data)||(a.hora||'').localeCompare(b.hora||''));
 }
 function estChipTxt(l){const e=estInfo(l);if(e.tipo==='anual'&&!e.f.semPlantio&&e.dap>=0)return `<b style="color:var(--leaf)">${e.dap} DAP</b>`;if(e.tipo==='perene')return esc(e.obsRecente?l.estadio_obs:(e.f&&e.f.fase)||'');return ''}
 function agHTML(i,showProd=true){
@@ -1022,14 +1096,27 @@ function agGrupos(itens){const t=today(),w=addDays(t,7);const g={late:[],hoje:[]
 
 /* ================= navegação ================= */
 const TABS=[['hoje','Hoje','hoje'],['agenda','Agenda','agenda'],['carteira','Carteira','carteira'],['comercial','Comercial','comercial'],['produtos','Produtos','produtos'],['safra','Calendário','safra'],['importar','Atualizar base','importar']];
-const ROUTES={hoje:['hoje'],agenda:['agenda'],'agenda-rota':['agenda','rota'],carteira:['carteira'],comercial:['comercial'],'comercial-oport':['comercial','oport'],'comercial-matriz':['comercial','matriz'],produtos:['produtos'],safra:['safra'],importar:['importar'],ajustes:['ajustes']};
+const ROUTES={avulsas:['avulsas'],hoje:['hoje'],agenda:['agenda'],'agenda-rota':['agenda','rota'],carteira:['carteira'],comercial:['comercial'],'comercial-oport':['comercial','oport'],'comercial-matriz':['comercial','matriz'],produtos:['produtos'],safra:['safra'],importar:['importar'],ajustes:['ajustes']};
 function parseHash(){
   const h=decodeURIComponent(location.hash.slice(1));
   if(h.startsWith('p-')){const i=h.indexOf('--');const id=i>0?h.slice(2,i):h.slice(2);let sub=i>0?h.slice(i+2):'geral',lid=null;if(sub.startsWith('lav-')){lid=sub.slice(4);sub='lavoura'}return {v:'produtor',id,sub,lid}}
   const r=ROUTES[h]||ROUTES.hoje;return {v:r[0],sub:r[1]||null};
 }
 function go(h){if(location.hash==='#'+h){S.route=parseHash();$('#view').dataset.hold='';render()}else location.hash=h}
-addEventListener('hashchange',()=>{S.route=parseHash();render();scrollTo(0,0)});
+/* lembra a rolagem de cada tela: ao voltar (botão voltar ou link "‹"), a lista volta onde estava */
+S.rolagem={};S.rolHash={};let ultY=0,porBack=false,hashAt=location.hash||'#hoje',seq=Date.now();
+const estN=()=>{try{const st=history.state;return st&&st.crmN!=null?st.crmN:null}catch(e){return null}};
+const marca=n=>{try{history.replaceState(Object.assign({},history.state||{},{crmN:n}),'')}catch(e){}};
+let navAt=estN();if(navAt==null){navAt=seq++;marca(navAt)}
+addEventListener('scroll',()=>{ultY=scrollY},{passive:true});
+addEventListener('click',e=>{porBack=!!(e.target.closest&&e.target.closest('.back'))},true);
+addEventListener('hashchange',ev=>{const novo=location.hash||'#hoje';S.rolagem[navAt]=ultY;S.rolHash[hashAt]=ultY;
+  const n=estN();let y=0,volta=false;
+  if(n!=null){navAt=n;y=S.rolagem[n]||0;volta=true}          /* botão voltar/avançar do celular */
+  else{navAt=seq++;marca(navAt);if(porBack){y=S.rolHash[novo]||0;volta=true}}  /* link "‹" */
+  porBack=false;hashAt=novo;
+  S.route=parseHash();const v=$('#view');v.classList.remove('entra');void v.offsetWidth;if(!(volta&&y))v.classList.add('entra');render();
+  scrollTo(0,y);requestAnimationFrame(()=>scrollTo(0,y))});
 $('#tabs').innerHTML=TABS.map(([k,t,i])=>`<a href="#${k}" data-v="${k}">${ic(i,16)}${t}</a>`).join('');
 $('#gear').innerHTML=ic('ajustes',16)+'<span class="gt">Ajustes</span>';
 $('#bnav').innerHTML=`<a href="#hoje" data-v="hoje">${ic('hoje',22)}<span>Hoje</span></a><a href="#agenda" data-v="agenda">${ic('agenda',22)}<span>Agenda</span></a><button type="button" class="reg" data-act="quick">${ic('plus',22)}<span>Registrar</span></button><a href="#carteira" data-v="carteira">${ic('carteira',22)}<span>Carteira</span></a><button type="button" data-act="mais" data-v="mais">${ic('menu',22)}<span>Mais</span></button>`;$('#gear').setAttribute('aria-label','Ajustes');
@@ -1037,13 +1124,13 @@ $('#bnav').innerHTML=`<a href="#hoje" data-v="hoje">${ic('hoje',22)}<span>Hoje</
 /* ================= render ================= */
 function render(){
   const r=S.route=parseHash(),view=$('#view');
-  $$('#tabs a,#gear,#bnav [data-v]').forEach(a=>{const on=a.dataset.v===r.v||(r.v==='produtor'&&a.dataset.v==='carteira')||(a.dataset.v==='mais'&&['comercial','produtos','safra','importar','ajustes'].includes(r.v));if(on)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')});
+  $$('#tabs a,#gear,#bnav [data-v]').forEach(a=>{const on=a.dataset.v===r.v||(r.v==='produtor'&&a.dataset.v==='carteira')||(a.dataset.v==='mais'&&['comercial','produtos','safra','importar','ajustes','avulsas'].includes(r.v));if(on)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')});
   if(!S.ready.p)return;
   view.hidden=false;
   const key=location.hash||'#hoje';
   if(view.dataset.hold===key)return;
   view.dataset.hold='';
-  ({hoje:vHoje,agenda:r.sub==='rota'?vRota:vAgenda,carteira:vCarteira,comercial:r.sub==='oport'?vOport:r.sub==='matriz'?vMatriz:vPainel,produtos:vProdutos,safra:vSafra,importar:vImportar,ajustes:vAjustes,produtor:vProdutor})[r.v]();
+  ({hoje:vHoje,agenda:r.sub==='rota'?vRota:vAgenda,carteira:vCarteira,comercial:r.sub==='oport'?vOport:r.sub==='matriz'?vMatriz:vPainel,produtos:vProdutos,safra:vSafra,importar:vImportar,ajustes:vAjustes,produtor:vProdutor,avulsas:vAvulsas})[r.v]();
 }
 const hold=()=>{$('#view').dataset.hold=location.hash||'#hoje'};
 function emptyHTML(){
@@ -1104,8 +1191,9 @@ function janelasHTML(jan){
     <div class="chips">${j.temRec?'<span class="chip ok">Recomendação feita</span>':'<span class="chip warn">Sem recomendação</span>'}<span class="chip">Oferecer: ${esc(j.s.oferta)}</span></div></div>
     <div class="row-btns w" style="flex-direction:column;align-items:stretch">${j.temRec?'':`<button class="btn sm pri" data-act="rec-nova" data-pid="${esc(j.p.id)}" data-lid="${esc(j.l.id)}" data-data="${j.s.ini<today()?today():j.s.ini}">Recomendar</button>`}<button class="btn sm" data-act="lemb-novo" data-pid="${esc(j.p.id)}" data-lid="${esc(j.l.id)}" data-data="${j.s.ini<today()?today():j.s.ini}">Agendar</button></div></div>`).join('')}</div>`;
 }
+const avTag=pid=>ehAvulso(pid)?' <span class="chip av-tag" title="Produtor fora da carteira">avulsa</span>':'';
 function oppRow(r,v){const l=lavDe(r.produtorId,r.lavouraId);
-  return `<div class="row"><div style="min-width:0"><div class="nm"><a href="#p-${esc(r.produtorId)}--recomendacoes">${esc(prodNome(r.produtorId))}</a> · ${esc(r.titulo||r.tipo)}</div><div class="sub">${esc(l?lavNome(l):'Geral')} · ${esc(stc(r))}${r.data_prevista?' · aplicar '+fmtCurto(r.data_prevista):''}</div></div><div class="acts"><b>${v?brl(v):'<span class="muted">sem preço</span>'}</b><button class="btn sm w" data-act="venda" data-id="${esc(r.id)}">Registrar venda</button></div></div>`}
+  return `<div class="row"><div style="min-width:0"><div class="nm"><a href="#p-${esc(r.produtorId)}--recomendacoes">${esc(prodNome(r.produtorId))}</a>${avTag(r.produtorId)} · ${esc(r.titulo||r.tipo)}</div><div class="sub">${esc(l?lavNome(l):'Geral')} · ${esc(stc(r))}${r.data_prevista?' · aplicar '+fmtCurto(r.data_prevista):''}</div></div><div class="acts"><b>${v?brl(v):'<span class="muted">sem preço</span>'}</b><button class="btn sm w" data-act="venda" data-id="${esc(r.id)}">Registrar venda</button></div></div>`}
 
 /* ---------- Agenda ---------- */
 const agTabs=a=>`<nav class="seg-tabs" aria-label="Agenda"><a href="#agenda" ${a==='lista'?'aria-current="page"':''}>Compromissos</a><a href="#agenda-rota" ${a==='rota'?'aria-current="page"':''}>Rota e mapa</a></nav>`;
@@ -1208,7 +1296,7 @@ function vCarteira(){
   if(!S.prods.size){$('#view').innerHTML=emptyHTML();return}
   const cs=new Set();S.prods.forEach(p=>lavouras(p).forEach(l=>cs.add(cultKey(l.cultura)||slug(l.cultura))));
   $('#view').innerHTML=`
-   <div class="sec-h"><h1>${ic('carteira',22)}Carteira</h1><div class="row-btns"><button class="btn sm w" data-act="novo-prod">${ic('plus',14)}Novo produtor</button><button class="btn sm" data-act="export">Exportar CSV</button></div></div>
+   <div class="sec-h"><h1>${ic('carteira',22)}Carteira</h1><div class="row-btns"><button class="btn sm w" data-act="novo-prod">${ic('plus',14)}Novo produtor</button><button class="btn sm w" data-act="avulsa-nova">${ic('file',14)}Recomendação avulsa</button>${(S.avulsos||[]).length?`<a class="btn sm ghost" href="#avulsas">Avulsas (${S.avulsos.length})</a>`:''}<button class="btn sm" data-act="export">Exportar CSV</button></div></div>
    <div class="filters">
     <input type="search" id="f-q" placeholder="Buscar por nome, apelido, propriedade, município ou matrícula" aria-label="Buscar">
     <select id="f-cult" aria-label="Cultura"><option value="">Todas as culturas</option>${[...cs].sort().map(c=>`<option value="${esc(c)}">${esc(CAL()[c]?CAL()[c].nome:c)}</option>`).join('')}</select>
@@ -1263,7 +1351,7 @@ function vPainel(){
     <section class="card"><h2 style="margin-bottom:12px">Produtos mais vendidos</h2>${hbars(pm.porProd)}</section>
     <section class="card"><h2 style="margin-bottom:12px">Por que compraram fora</h2>${hbars(pm.motivos,'crit',false)}</section>
    </div>
-   <section class="box" style="margin-top:16px"><div class="box-h"><h2>Recomendações emitidas no mês</h2></div>${recsOrd.length?`<div class="tbl-wrap" style="border:0;border-radius:0"><table><thead><tr><th>Data</th><th>Produtor</th><th>Recomendação</th><th>Técnica</th><th>Comercial</th><th class="n">Valor</th><th></th></tr></thead><tbody>${recsOrd.map(r=>{const l=lavDe(r.produtorId,r.lavouraId);return `<tr><td>${fmtCurto(r.data_rec)}</td><td><a href="#p-${esc(r.produtorId)}--comercial">${esc(prodNome(r.produtorId))}</a></td><td>${esc(r.titulo)}<div class="muted sm">${esc(l?lavNome(l):'Geral')}</div></td><td>${esc(r.status||'Recomendada')}</td><td>${stcChip(r)}</td><td class="n">${brl(valorRec(r))}</td><td class="n"><button class="btn sm ghost w" data-act="venda" data-id="${esc(r.id)}">Resultado</button></td></tr>`}).join('')}</tbody></table></div>`:'<p class="box-e">Nada neste mês.</p>'}</section>`;
+   <section class="box" style="margin-top:16px"><div class="box-h"><h2>Recomendações emitidas no mês</h2></div>${recsOrd.length?`<div class="tbl-wrap" style="border:0;border-radius:0"><table><thead><tr><th>Data</th><th>Produtor</th><th>Recomendação</th><th>Técnica</th><th>Comercial</th><th class="n">Valor</th><th></th></tr></thead><tbody>${recsOrd.map(r=>{const l=lavDe(r.produtorId,r.lavouraId);return `<tr><td>${fmtCurto(r.data_rec)}</td><td><a href="#p-${esc(r.produtorId)}--comercial">${esc(prodNome(r.produtorId))}</a>${avTag(r.produtorId)}</td><td>${esc(r.titulo)}<div class="muted sm">${esc(l?lavNome(l):'Geral')}</div></td><td>${esc(r.status||'Recomendada')}</td><td>${stcChip(r)}</td><td class="n">${brl(valorRec(r))}</td><td class="n"><button class="btn sm ghost w" data-act="venda" data-id="${esc(r.id)}">Resultado</button></td></tr>`}).join('')}</tbody></table></div>`:'<p class="box-e">Nada neste mês.</p>'}</section>`;
 }
 const OF={st:''};
 function vOport(){
@@ -1273,7 +1361,7 @@ function vOport(){
   $('#view').innerHTML=comTabs('oport')+`
    <div class="tiles">${tile(brlC(tot),'em oportunidades abertas',{c:'opp'})}${tile(os.length,'recomendações aguardando venda')}${tile(os.filter(o=>o.r.data_prevista&&o.r.data_prevista<=addDays(today(),7)).length,'com aplicação nos próximos 7 dias',{c:'warn'})}${semPreco?tile(semPreco,'sem preço completo',{href:'#produtos',x:'cadastre o preço no catálogo'}):''}</div>
    <div class="filters"><select id="of-st" aria-label="Situação"><option value="">Em aberto e orçamento enviado</option><option>Em aberto</option><option>Orçamento enviado</option></select></div>
-   ${os.length?`<div class="tbl-wrap"><table><thead><tr><th>Produtor</th><th>Recomendação</th><th>Aplicar em</th><th>Situação</th><th class="n">Valor estimado</th><th></th></tr></thead><tbody>${os.map(({r,v})=>{const l=lavDe(r.produtorId,r.lavouraId),p=S.prods.get(r.produtorId);return `<tr><td><a href="#p-${esc(r.produtorId)}--comercial"><b>${esc(prodNome(r.produtorId))}</b></a>${p?'<div>'+grpChip(KI(p).grupo)+'</div>':''}</td><td>${esc(r.titulo)}<div class="muted sm">${esc(l?lavNome(l):'Geral')} · ${esc(recResumo(r))}</div></td><td>${r.data_prevista?fmtBR(r.data_prevista):''}</td><td>${stcChip(r)}</td><td class="n"><b>${v?brl(v):'sem preço'}</b></td><td class="n"><div class="row-btns" style="justify-content:flex-end;flex-wrap:nowrap"><button class="btn sm" data-act="orc" data-id="${esc(r.id)}">${ic('msg',14)}Orçamento</button><button class="btn sm pri w" data-act="venda" data-id="${esc(r.id)}">Resultado</button></div></td></tr>`}).join('')}</tbody></table></div>`:'<div class="notice">Nenhuma oportunidade aberta. Elas nascem das recomendações técnicas.</div>'}`;
+   ${os.length?`<div class="tbl-wrap"><table><thead><tr><th>Produtor</th><th>Recomendação</th><th>Aplicar em</th><th>Situação</th><th class="n">Valor estimado</th><th></th></tr></thead><tbody>${os.map(({r,v})=>{const l=lavDe(r.produtorId,r.lavouraId),p=S.prods.get(r.produtorId);return `<tr><td><a href="#p-${esc(r.produtorId)}--comercial"><b>${esc(prodNome(r.produtorId))}</b></a>${ehAvulso(r.produtorId)?'<div>'+avTag(r.produtorId)+'</div>':p?'<div>'+grpChip(KI(p).grupo)+'</div>':''}</td><td>${esc(r.titulo)}<div class="muted sm">${esc(l?lavNome(l):'Geral')} · ${esc(recResumo(r))}</div></td><td>${r.data_prevista?fmtBR(r.data_prevista):''}</td><td>${stcChip(r)}</td><td class="n"><b>${v?brl(v):'sem preço'}</b></td><td class="n"><div class="row-btns" style="justify-content:flex-end;flex-wrap:nowrap"><button class="btn sm" data-act="orc" data-id="${esc(r.id)}">${ic('msg',14)}Orçamento</button><button class="btn sm pri w" data-act="venda" data-id="${esc(r.id)}">Resultado</button></div></td></tr>`}).join('')}</tbody></table></div>`:'<div class="notice">Nenhuma oportunidade aberta. Elas nascem das recomendações técnicas.</div>'}`;
   $('#of-st').value=OF.st;$('#of-st').onchange=e=>{OF.st=e.target.value;vOport()};
 }
 function vMatriz(){
@@ -1366,22 +1454,30 @@ function simEmb(){const out=$('#pd-sim');if(!out)return;const q=num($('#pd-sq').
 
 /* ---------- Calendário (editável) ---------- */
 function vSafra(){
-  const C=CAL(),c=CFG(),mes=new Date().getMonth();
+  const C=CAL(),c=CFG(),mes=new Date().getMonth(),ks=Object.keys(C);
+  const nLav=k=>[...S.prods.values()].reduce((n,p)=>n+lavouras(p).filter(l=>cultKey(l.cultura)===k).length,0);
+  if(!S.calSel||!C[S.calSel])S.calSel=ks.slice().sort((a,b)=>nLav(b)-nLav(a))[0];
+  const k=S.calSel,d=C[k];
+  const fs=d.tipo==='anual'?[...d.fases].sort((a,b)=>a.d-b.d):[...d.fases].sort((a,b)=>ordM(a.m,d.inicioMes)-ordM(b.m,d.inicioMes));
+  const span=d.tipo==='anual'?(+d.ciclo||120):12;
+  const ini=i=>d.tipo==='anual'?fs[i].d:ordM(fs[i].m,d.inicioMes),fim=i=>i<fs.length-1?ini(i+1):span;
+  const cur=d.tipo==='perene'?fs.reduce((acc,f,i)=>ordM(f.m,d.inicioMes)<=ordM(mes,d.inicioMes)?i:acc,0):-1;
+  const est=i=>d.tipo==='perene'?(i<cur?'feita':i===cur?'agora':'futura'):'';
+  const hoje=d.tipo==='perene'?(ordM(mes,d.inicioMes)+(new Date().getDate()-1)/30)/12*100:null;
+  /* onde estão as lavouras da carteira desta cultura agora */
+  const agora={};[...S.prods.values()].forEach(p=>lavouras(p).filter(l=>cultKey(l.cultura)===k).forEach(l=>{const e=estInfo(l);const n=e.tipo==='perene'&&e.obsRecente?l.estadio_obs:(e.f&&e.f.fase)||(e.f&&e.f.semPlantio?'sem data de plantio':'sem fase');agora[n]=(agora[n]||0)+1}));
+  const mLbl=i=>d.tipo==='anual'?`${fs[i].d} a ${Math.max(fs[i].d,fim(i)-1)} DAP`:(()=>{const a=fs[i].m,b=i<fs.length-1?fs[i+1].m:null;const nm=fim(i)-ini(i);return nm<=1?MESES_L[a]:`${MESES_L[a]} a ${MESES_L[(+a+nm-1)%12]}`})();
   $('#view').innerHTML=`<div class="sec-h"><h1>${ic('safra',22)}Calendário das culturas</h1><button class="btn pri w" data-act="cal-nova">${ic('plus',16)}Nova cultura</button></div>
-   <p class="muted" style="margin-bottom:14px;max-width:80ch">Este é o calendário padrão de cada cultura: fases, foco técnico, o que oferecer e quais fases são janelas de manejo. Tudo é editável. Cada lavoura também pode ter o próprio calendário (ajuste na página da lavoura).</p>
-   <div class="stack">${Object.entries(C).map(([k,d])=>{
-     const fs=d.tipo==='anual'?[...d.fases].sort((a,b)=>a.d-b.d):[...d.fases].sort((a,b)=>ordM(a.m,d.inicioMes)-ordM(b.m,d.inicioMes));
-     const span=d.tipo==='anual'?(+d.ciclo||120):12;
-     const w=i=>{if(d.tipo==='anual'){const a=fs[i].d,b=i<fs.length-1?fs[i+1].d:span;return Math.max(2,(b-a)/span*100)}const a=ordM(fs[i].m,d.inicioMes),b=i<fs.length-1?ordM(fs[i+1].m,d.inicioMes):12;return (b-a)/12*100};
-     const cur=d.tipo==='perene'?fs.reduce((acc,f,i)=>ordM(f.m,d.inicioMes)<=ordM(mes,d.inicioMes)?i:acc,0):-1;
-     const nLav=[...S.prods.values()].reduce((s,p)=>s+lavouras(p).filter(l=>cultKey(l.cultura)===k).length,0);
-     return `<section class="card"><div class="sec-h"><h2><span class="ico" style="background:${esc(d.cor||'#888')}"></span>${esc(d.nome)} <span class="muted sm" style="font-weight:400">${d.tipo==='anual'?`anual · ciclo de ${d.ciclo} dias · fases por dias após o plantio`:`perene · ano agrícola a partir de ${MESES_L[d.inicioMes]}`} · ${plural(nLav,'lavoura')} · insumos ${brl(c.custo_ha[k]||0)}/ha</span></h2><button class="btn sm w" data-act="cal-edit" data-k="${esc(k)}">Editar calendário</button></div>
-      <div class="tl-wrap"><div class="tl" style="padding-top:4px;min-width:560px"><div class="bar">${fs.map((f,i)=>`<div class="seg ${f.janela?'jan':''} ${i===cur?'cur':''}" style="width:${w(i)}%" title="${esc(f.fase)}">${esc(f.fase)}</div>`).join('')}</div></div></div>
-      <div class="tbl-wrap" style="margin-top:10px"><table><thead><tr><th>${d.tipo==='anual'?'Início':'Mês'}</th><th>Fase</th><th>Foco técnico</th><th>O que oferecer</th><th>Janela</th></tr></thead><tbody>${fs.map((f,i)=>`<tr class="${i===cur?'cur':''}"><td style="white-space:nowrap">${d.tipo==='anual'?f.d+' DAP':MESES_L[f.m]}</td><td><b>${esc(f.fase)}</b></td><td>${esc(f.foco)}</td><td>${esc(f.oferta)}</td><td>${f.janela?'<span class="chip warn">janela</span>':''}</td></tr>`).join('')}</tbody></table></div>
-      ${(d.estadios||[]).length?`<p class="muted sm" style="margin-top:8px"><b>Estádios para registro:</b> ${esc(d.estadios.join(', '))}</p>`:''}</section>`}).join('')}</div>
-   <p class="muted sm" style="margin-top:12px">Referência inicial para o Sul de Minas. As datas variam com altitude, cultivar e clima do ano. A faixa amarela embaixo da fase marca janela de manejo, que aparece no painel Hoje.</p>`;
+   <div class="cal-sel" role="tablist">${ks.map(x=>`<button type="button" role="tab" class="cal-tab" data-act="cal-sel" data-k="${esc(x)}" aria-selected="${x===k}"><span class="ico" style="background:${esc(C[x].cor||'#888')}"></span>${esc(C[x].nome)}${nLav(x)?`<small>${nLav(x)}</small>`:''}</button>`).join('')}</div>
+   <section class="card cal-card"><div class="sec-h"><div><h2><span class="ico" style="background:${esc(d.cor||'#888')}"></span>${esc(d.nome)}</h2><div class="muted sm">${d.tipo==='anual'?`Anual · ciclo de ${d.ciclo} dias · fases contadas em dias após o plantio`:`Perene · ano agrícola a partir de ${MESES_L[d.inicioMes]}`} · insumos ${brl(c.custo_ha[k]||0)}/ha</div></div><button class="btn sm w" data-act="cal-edit" data-k="${esc(k)}">Editar calendário</button></div>
+    <div style="margin:14px 0 6px">${barraRaw(fs.map((f,i)=>({w:(fim(i)-ini(i))/span*100,estado:est(i),janela:f.janela,t:f.fase})),hoje,{eixo:d.tipo==='anual'?['0 DAP',span+' DAP']:[MESES_L[d.inicioMes],MESES_L[(d.inicioMes+11)%12]]})}</div>
+    ${Object.keys(agora).length?`<div class="cal-agora"><span class="lbl">Na sua carteira agora</span>${Object.entries(agora).sort((a,b)=>b[1]-a[1]).map(([n,q])=>`<span class="chip">${esc(n)} <b>${q}</b></span>`).join('')}</div>`:''}
+    ${faseLista(fs.map((f,i)=>({fase:f.fase,estado:est(i),janela:f.janela,foco:f.foco,oferta:f.oferta,quando:mLbl(i)})),{aberta:true,cls:'cal'})}
+    ${(d.estadios||[]).length?`<div class="cal-est"><span class="lbl">Estádios para registro na visita</span><div class="chips">${d.estadios.map(x=>`<span class="chip">${esc(x)}</span>`).join('')}</div></div>`:''}
+   </section>
+   <p class="muted sm" style="margin-top:12px">Referência inicial para o Sul de Minas: as datas variam com altitude, cultivar e clima do ano. Tudo é editável; cada lavoura também pode ter fases próprias (na página da lavoura). Faixa amarela: janela de manejo, que aparece no painel Hoje.</p>`;
 }
-function phRowHTML(f,tipo){return `<div class="ph-row">
+function phRowHTML(f,tipo){return `<div class="ph-row${f.janela?' jan':''}">
    ${tipo==='anual'?`<label>Início (DAP)<input type="text" inputmode="numeric" data-f="d" value="${esc(f.d??0)}"></label>`:`<label>Mês de início<select data-f="m">${MESES_L.map((m,i)=>`<option value="${i}" ${+f.m===i?'selected':''}>${m}</option>`).join('')}</select></label>`}
    <label>Fase ou estádio<input type="text" data-f="fase" value="${esc(f.fase||'')}"></label>
    <button class="btn sm ghost danger" type="button" data-act="ph-del" aria-label="Remover fase">✕</button>
@@ -1438,9 +1534,9 @@ function vProdutor(){
   const r=S.route,p=S.prods.get(r.id),view=$('#view');
   if(!p){view.innerHTML='<div class="notice">Produtor não encontrado. <a href="#carteira">Voltar para a carteira</a></div>';return}
   const s=sinais(p),ki=KI(p),tot=areaTotal(p),v=variacao(p);
-  const head=`<div class="p-head"><div style="min-width:0"><a class="back" href="#carteira">‹ Carteira</a><h1>${esc(p.nome)}</h1><div class="muted">${p.apelido?'Chamar de <b style="color:var(--ink)">'+esc(p.apelido)+'</b> · ':''}${esc([p.codigo?'Matrícula '+p.codigo:null,fzResumo(p),p.municipio].filter(Boolean).join(' · '))}</div><div class="chips">${p.exemplo?'<span class="chip ex">Exemplo</span>':''}${grpChip(ki.grupo)}${s.chips.map(x=>`<span class="chip ${x.c}">${esc(x.t)}</span>`).join('')}</div></div>
+  const head=(p.avulso?`<div class="notice av-note">Produtor fora da carteira (recomendação avulsa). <button class="btn sm" data-act="avulso-incluir" data-pid="${esc(p.id)}">Incluir na carteira</button></div>`:'')+`<div class="p-head"><div style="min-width:0"><a class="back" href="${p.avulso?'#avulsas':'#carteira'}">‹ ${p.avulso?'Avulsas':'Carteira'}</a><h1>${esc(p.nome)}</h1><div class="muted">${p.apelido?'Chamar de <b style="color:var(--ink)">'+esc(p.apelido)+'</b> · ':''}${esc([p.codigo?'Matrícula '+p.codigo:null,fzResumo(p),p.municipio].filter(Boolean).join(' · '))}</div><div class="chips">${p.exemplo?'<span class="chip ex">Exemplo</span>':''}${grpChip(ki.grupo)}${s.chips.map(x=>`<span class="chip ${x.c}">${esc(x.t)}</span>`).join('')}</div></div>
    ${r.sub==='relatorio'?'':`<div class="qact w"><a class="qa pri" href="#p-${esc(p.id)}--relatorio">${ic('file',22)}<span>Relatório</span></a><button class="qa" type="button" data-act="quick-est" data-pid="${esc(p.id)}">${ic('safra',22)}<span>Estádio</span></button><a class="qa wa" href="${esc(waLink(p,roteiro(p,atendDe(p.id)).wpp))}" target="_blank" rel="noopener">${ic('wa',22)}<span>WhatsApp</span></a><button class="qa" type="button" data-act="rec-nova" data-pid="${esc(p.id)}">${ic('plus',22)}<span>Recomendar</span></button><button class="qa" type="button" data-act="lemb-novo" data-pid="${esc(p.id)}">${ic('agenda',22)}<span>Lembrete</span></button></div>`}</div>`;
-  const tiles=r.sub==='relatorio'?'':`<div class="tiles">
+  const tiles=r.sub!=='geral'||p.avulso?'':`<div class="tiles">
    ${tile(nfmt(tot)+' ha','área plantada',{href:`#p-${esc(p.id)}--culturas`,c:'leaf',x:plural(lavouras(p).length,'lavoura')})}
    ${tile(ki.pot.v?brlC(ki.pot.v):'?','potencial anual',{href:`#p-${esc(p.id)}--comercial`,c:'opp',x:ki.pot.fonte==='calculado'?'calculado pela área':ki.pot.fonte==='manual'?'informado manualmente':ki.pot.fonte==='informado'?'informado (sem área)':'informe a área das lavouras'})}
    ${tile(brlC(p.compras_12m),'compras em 12 meses',{href:`#p-${esc(p.id)}--comercial`,x:v!=null?`<span style="color:var(--${v<0?'crit':'ok'})">${v>0?'+':''}${Math.round(v*100)}%</span> sobre os 12 meses anteriores`:''})}
@@ -1457,6 +1553,7 @@ function lavLines(p){
   const lavs=lavouras(p);if(!lavs.length)return `<p class="box-e">Nenhuma lavoura cadastrada.</p>`;
   return `<div class="lst">${lavs.map(l=>{const e=estInfo(l);const f=e.f;return `<div class="lavline">${badge(l)}<div class="info"><div class="nm"><a href="#p-${esc(p.id)}--lav-${esc(l.id)}">${esc(lavNome(l))}</a> <span class="muted" style="font-weight:400">${l.area_ha?nfmt(l.area_ha)+' ha':'área ?'}</span></div>
     <div class="ph">${esc(faseTexto(l))}</div>
+    ${(()=>{const cd=cicloDados(l);return cd?`<div style="margin:6px 0 2px;max-width:420px">${cicloBar(cd,{sm:true})}</div>`:''})()}
     ${f&&f.prox?`<div class="sm muted">Próxima: ${esc(f.prox.fase)} em ${plural(f.emProx,'dia')}</div>`:''}
     <div class="chips">${e.tipo==='perene'&&l.manejo?`<span class="chip ${l.manejo==='Em produção'?'':'warn'}">${esc(l.manejo)}</span>`:''}${e.idade!=null?`<span class="chip">${plural(e.idade,'ano')}</span>`:''}${l.condicao?`<span class="chip ${l.condicao==='Boa'?'ok':l.condicao==='Ruim'?'crit':'warn'}">condição ${esc(l.condicao.toLowerCase())}</span>`:''}${e.tipo==='perene'&&e.obsRecente&&f&&f.fase&&norm(f.fase)!==norm(l.estadio_obs)?`<span class="chip">esperado: ${esc(f.fase)}</span>`:''}${e.tipo==='anual'&&l.estadio_obs?`<span class="chip">visto: ${esc(l.estadio_obs)} em ${fmtCurto(l.estadio_data)}</span>`:''}</div></div>
     <button class="btn sm w" data-act="est" data-pid="${esc(p.id)}" data-id="${esc(l.id)}">Atualizar estádio</button></div>`}).join('')}</div>`;
@@ -1487,8 +1584,9 @@ function pGeral(p){
 function lavCard(p,l){const e=estInfo(l),f=e.f;const pend=recsDe(p.id).filter(r=>r.lavouraId===l.id&&r.status==='Recomendada').length;
   return `<div class="card lav"><div class="lav-top">${badge(l)}<div class="info"><h3><span class="ico" style="background:${esc(cropCor(l))}"></span>${esc(cropNome(l))}${l.talhao?` <span class="muted" style="font-weight:400">· ${esc(l.talhao)}</span>`:''}</h3><div class="muted sm">${esc([l.area_ha?nfmt(l.area_ha)+' ha':'área não informada',l.variedade,l.safra?'safra '+l.safra:null].filter(Boolean).join(' · '))}</div>
     <div style="font-family:var(--f-display);font-weight:700;margin-top:4px">${esc(faseTexto(l))}</div></div></div>
-    ${f&&f.pct!=null?`<div class="prog"><i style="width:${Math.round((f.pct||0)*100)}%"></i></div>`:''}
-    <div class="sm">${f&&f.foco?`<b>Foco:</b> ${esc(f.foco)}`:''}${f&&f.prox?`<div class="muted">Próxima fase: ${esc(f.prox.fase)} em ${plural(f.emProx,'dia')} (${fmtCurto(f.proxData)})</div>`:''}</div>
+    ${(()=>{const cd=cicloDados(l);return cd?`<div style="margin:10px 0 4px">${cicloBar(cd,{sm:true})}</div>`:''})()}
+    ${f&&f.prox?`<div class="fz-mini"><span class="cur">${esc(e.tipo==='perene'&&e.obsRecente?l.estadio_obs:f.fase||'')}</span><span class="arr">→</span><span><b>${esc(f.prox.fase)}</b> em ${plural(f.emProx,'dia')}</span></div>`:''}
+    <div class="sm">${f&&f.foco?`<b>Foco:</b> ${esc(f.foco)}`:''}</div>
     <div class="chips">${l.manejo&&e.tipo==='perene'?`<span class="chip ${l.manejo==='Em produção'?'':'warn'}">${esc(l.manejo)}</span>`:''}${e.idade!=null?`<span class="chip">${plural(e.idade,'ano')}</span>`:''}${+l.plantas_m>0?`<span class="chip">${nfmt(l.plantas_m)} plantas/m</span>`:''}${plantasHa(l)?`<span class="chip">${nfmt(plantasHa(l),0)} plantas/ha</span>`:''}${l.vacas?`<span class="chip">${l.vacas} vacas em lactação</span>`:''}${l.condicao?`<span class="chip ${l.condicao==='Boa'?'ok':l.condicao==='Ruim'?'crit':'warn'}">condição ${esc(l.condicao.toLowerCase())}</span>`:''}${pend?`<span class="chip opp">${plural(pend,'recomendação aberta','recomendações abertas')}</span>`:''}${e.def&&e.def.custom?'<span class="chip">calendário próprio</span>':''}</div>
     <div class="row-btns"><a class="btn sm pri" href="#p-${esc(p.id)}--lav-${esc(l.id)}">Calendário e ações</a><button class="btn sm w" data-act="est" data-pid="${esc(p.id)}" data-id="${esc(l.id)}">Atualizar estádio</button><button class="btn sm ghost w" data-act="lav-edit" data-pid="${esc(p.id)}" data-id="${esc(l.id)}">Editar</button></div></div>`}
 function pCulturas(p){
@@ -1511,20 +1609,30 @@ function pLavoura(p){
   if(!l){$('#pbody').innerHTML=`<div class="notice">Lavoura não encontrada. <a href="#p-${esc(p.id)}--culturas">Ver culturas</a></div>`;return}
   const e=estInfo(l),f=e.f,def=e.def,t=today();
   const segs=def?(def.tipo==='anual'?segmentos(l):segmentos(l,0)):[];const j=janelaLav(l);
-  const ev=eventosLav(p,l);
+  const ev=eventosLav(p,l);const cd=cicloDados(l);
   let tl='<p class="muted">Sem linha do tempo: '+(def&&def.tipo==='anual'?'informe a data de plantio.':'cultura sem calendário.')+'</p>';
-  if(segs.length&&j){const span=Math.max(1,diffDays(j.fim,j.ini));const pos=d=>Math.max(0,Math.min(100,diffDays(d,j.ini)/span*100));const nowIn=t>=j.ini&&t<=j.fim;
+  if(cd){const evs=ev.filter(x=>x.data>=cd.j.ini&&x.data<=cd.j.fim);
+    tl=cicloBar(cd,{eixo:true,ev:evs.map(x=>({pos:cd.pos(x.data),k:x.k,feito:x.feito,t:fmtBR(x.data)+' · '+x.tit}))})+
+     (evs.length?`<p class="cb-leg"><span><i class="cb-ev aplicacao"></i>Aplicação</span><span><i class="cb-ev operacao"></i>Operação</span><span><i class="cb-ev visita"></i>Visita agendada</span><span><i class="cb-ev relatorio"></i>Visita feita</span></p>`:'')+
+     faseLista(cd.segs.map((x,ix)=>{const dd=x.ini<t?t:x.ini;const n=ev.filter(y=>y.data>=x.ini&&y.data<x.fim).length;const vis=x.estado==='agora'||ix===cd.segs.findIndex(y=>y.estado==='futura');
+       return {fase:x.fase,estado:x.estado,janela:x.janela,foco:x.foco,oferta:x.oferta,
+        quando:`${fmtCurto(x.ini)} a ${fmtCurto(addDays(x.fim,-1))}${def.tipo==='anual'?' · a partir de '+x.d+' DAP':''}`,
+        falta:x.estado==='futura'?'começa em '+plural(diffDays(x.ini,t),'dia'):x.estado==='agora'?'faltam '+plural(Math.max(0,diffDays(x.fim,t)),'dia'):'',
+        pct:x.estado==='agora'?diffDays(t,x.ini)/Math.max(1,diffDays(x.fim,x.ini)):null,
+        [vis?'acoes':'acoesD']:x.estado!=='feita'?`<div class="row-btns fz-a"><button class="btn sm" data-act="rec-nova" data-pid="${esc(p.id)}" data-lid="${esc(l.id)}" data-data="${dd}">${ic('plus',14)}Recomendar</button><button class="btn sm ghost" data-act="lemb-novo" data-pid="${esc(p.id)}" data-lid="${esc(l.id)}" data-data="${dd}">${ic('agenda',14)}Agendar</button>${n?`<span class="muted sm">${plural(n,'ação','ações')} nesta fase</span>`:''}</div>`:(n?`<div class="muted sm">${plural(n,'ação','ações')} nesta fase</div>`:'')}}))}
+
+  if(false&&segs.length&&j){const span=Math.max(1,diffDays(j.fim,j.ini));const pos=d=>Math.max(0,Math.min(100,diffDays(d,j.ini)/span*100));const nowIn=t>=j.ini&&t<=j.fim;
     tl=`<div class="tl-wrap"><div class="tl">${ev.filter(x=>x.data>=j.ini&&x.data<=j.fim).map(x=>`<span class="mk ${x.k} ${x.feito?'feito':''}" style="left:${pos(x.data)}%" title="${esc(fmtBR(x.data)+' · '+x.tit)}"></span>`).join('')}
      <div class="bar">${segs.map(s=>`<div class="seg ${s.janela?'jan':''} ${t>=s.ini&&t<s.fim?'cur':''}" style="width:${Math.max(0,diffDays(s.fim,s.ini))/span*100}%" title="${esc(s.fase+': '+fmtBR(s.ini)+' a '+fmtBR(addDays(s.fim,-1)))}">${esc(s.fase)}</div>`).join('')}</div>
      ${nowIn?`<div class="now" style="left:${pos(t)}%"></div>`:''}<div class="axis"><span>${fmtBR(j.ini)}</span><span>${fmtBR(j.fim)}</span></div></div></div>
-     <p class="muted sm" style="margin-top:4px"><span class="ico aplicacao"></span>Aplicação <span class="ico operacao" style="margin-left:10px"></span>Operação <span class="ico visita" style="margin-left:10px"></span>Visita agendada <span class="ico relatorio" style="margin-left:10px"></span>Visita feita · marcadores claros já foram feitos · faixa amarela: janela de manejo</p>`}
-  const tab=segs.length?`<div class="tbl-wrap"><table><thead><tr><th>Fase</th><th>Período</th><th>Foco técnico</th><th>O que oferecer</th><th class="n">Ações</th></tr></thead><tbody>${segs.map(s=>{const cur=t>=s.ini&&t<s.fim;const n=ev.filter(x=>x.data>=s.ini&&x.data<s.fim).length;const dd=s.ini<t?t:s.ini;
+     `}
+  const tab=false?`<div class="tbl-wrap"><table><thead><tr><th>Fase</th><th>Período</th><th>Foco técnico</th><th>O que oferecer</th><th class="n">Ações</th></tr></thead><tbody>${segs.map(s=>{const cur=t>=s.ini&&t<s.fim;const n=ev.filter(x=>x.data>=s.ini&&x.data<s.fim).length;const dd=s.ini<t?t:s.ini;
     return `<tr class="${cur?'cur':''}"><td><b>${esc(s.fase)}</b>${cur?' <span class="chip leaf">agora</span>':''}${s.janela?' <span class="chip warn">janela</span>':''}${def.tipo==='anual'?`<div class="muted sm">a partir de ${s.d} DAP</div>`:''}</td><td style="white-space:nowrap">${fmtCurto(s.ini)} a ${fmtCurto(addDays(s.fim,-1))}</td><td>${esc(s.foco)}</td><td>${esc(s.oferta)}</td><td class="n"><div class="row-btns" style="justify-content:flex-end;flex-wrap:nowrap"><button class="btn sm ghost w" data-act="rec-nova" data-pid="${esc(p.id)}" data-lid="${esc(l.id)}" data-data="${dd}">Recomendar</button><button class="btn sm ghost w" data-act="lemb-novo" data-pid="${esc(p.id)}" data-lid="${esc(l.id)}" data-data="${dd}">Agendar</button></div>${n?`<div class="muted sm">${plural(n,'item','itens')}</div>`:''}</td></tr>`}).join('')}</tbody></table></div>`:'';
   const sub=e.tipo==='anual'?(f.semPlantio?'Informe a data de plantio para calcular os dias após o plantio.':e.dap<0?`Plantio previsto para ${fmtBR(l.plantio)}`:`Plantio em ${fmtBR(l.plantio)}${l.estadio_obs?` · visto em ${l.estadio_obs} no dia ${fmtCurto(l.estadio_data)}`:''}`)
     :e.tipo==='perene'?(e.obsRecente?`Observado em ${fmtBR(l.estadio_data)}. Pelo calendário, a fase esperada é ${f&&f.fase}.`:`Estádio esperado pelo calendário. ${l.estadio_obs?`Último registro: ${l.estadio_obs} em ${fmtBR(l.estadio_data)}.`:'Registre o estádio observado na visita.'}`):'';
   const titulo=e.tipo==='perene'&&e.obsRecente?l.estadio_obs:(f&&f.fase?f.fase:faseTexto(l));
   $('#pbody').innerHTML=`<a class="back" href="#p-${esc(p.id)}--culturas">‹ Culturas</a>
-   <div class="sec-h" style="margin-top:6px"><h2><span class="ico" style="background:${esc(cropCor(l))}"></span>${esc(lavNome(l))}${l.area_ha?' · '+nfmt(l.area_ha)+' ha':''}</h2><div class="row-btns w"><button class="btn sm" data-act="lav-edit" data-pid="${esc(p.id)}" data-id="${esc(l.id)}">Editar lavoura</button>${def?`<button class="btn sm" data-act="lav-cal" data-pid="${esc(p.id)}" data-id="${esc(l.id)}">Editar calendário${def.custom?' (próprio)':''}</button>`:''}<button class="btn sm" data-act="lemb-novo" data-pid="${esc(p.id)}" data-lid="${esc(l.id)}">Agendar</button><button class="btn sm pri" data-act="rec-nova" data-pid="${esc(p.id)}" data-lid="${esc(l.id)}">Nova recomendação</button></div></div>
+   <div class="sec-h" style="margin-top:6px"><h2><span class="ico" style="background:${esc(cropCor(l))}"></span>${esc(lavNome(l))}${l.area_ha?' · '+nfmt(l.area_ha)+' ha':''}</h2><div class="row-btns w"><button class="btn sm ghost" data-act="lav-edit" data-pid="${esc(p.id)}" data-id="${esc(l.id)}">Editar lavoura</button><button class="btn sm" data-act="lemb-novo" data-pid="${esc(p.id)}" data-lid="${esc(l.id)}">Agendar</button><button class="btn sm pri" data-act="rec-nova" data-pid="${esc(p.id)}" data-lid="${esc(l.id)}">Nova recomendação</button></div></div>
    <div class="stack">
     <section class="card"><div class="now-box">${badge(l,true)}<div class="stack" style="gap:10px">
       <div><span class="lbl">Momento atual</span><div style="font-family:var(--f-display);font-size:1.3rem;font-weight:800">${esc(titulo)}</div><div class="muted sm">${esc(sub)}</div></div>
@@ -1536,8 +1644,7 @@ function pLavoura(p){
       </div>
       <div class="row-btns w"><button class="btn sm leaf" data-act="est" data-pid="${esc(p.id)}" data-id="${esc(l.id)}">Atualizar estádio observado</button></div>
     </div></div></section>
-    <section class="card"><h2 style="margin-bottom:8px">Linha do tempo da safra</h2>${tl}</section>
-    ${tab?`<section><div class="sec-h"><h2>Calendário desta lavoura</h2><p>Use Recomendar ou Agendar na fase certa para posicionar as ações.</p></div>${tab}</section>`:''}
+    <section class="card"><div class="sec-h" style="margin-bottom:10px"><h2>Ciclo da safra</h2>${def?`<button class="btn sm ghost w" data-act="lav-cal" data-pid="${esc(p.id)}" data-id="${esc(l.id)}">Editar fases${def.custom?' (próprias)':''}</button>`:''}</div>${tl}${cd?'<p class="muted sm" style="margin-top:6px">Recomendar ou Agendar dentro de uma fase já sugere a data certa.</p>':''}</section>
     <section class="box"><div class="box-h"><h2>Plano de ações da safra</h2><p>Recomendações, operações e visitas desta lavoura, em ordem de data.</p></div>
      ${ev.length?`<div class="lst">${ev.map(x=>`<div class="ag ${!x.feito&&x.data<t?'late':''}"><div class="d"><b>${fmtCurto(x.data).slice(0,2)}</b><small>${MESES[parseISO(x.data).getMonth()]}</small></div><div style="min-width:0"><div class="t"><span class="ico ${x.k}"></span>${esc(x.tit)}</div><div class="s">${esc(x.sub)}${def&&def.tipo==='anual'&&l.plantio?` · ${diffDays(x.data,l.plantio)} DAP`:''}</div></div><div class="acts">${x.src==='rec'?`<button class="btn sm ghost" data-act="rec-edit" data-id="${esc(x.id)}">Ver</button>`:x.src==='lemb'&&!x.feito?`<button class="btn sm w" data-act="lemb-feito" data-id="${esc(x.id)}">Concluir</button>`:x.feito?'<span class="chip ok">Feito</span>':''}</div></div>`).join('')}</div>`:'<p class="box-e">Nada planejado ainda. Use Recomendar ou Agendar em uma fase.</p>'}</section>
    </div>`;
@@ -2198,7 +2305,39 @@ function estForm(pid,lid){
    <div class="acts"><button class="btn pri" type="submit">Salvar estádio</button></div>`,
    async()=>{const v=$('#es-e').value.trim();if(!v){toast('Toque no estádio observado.');return false}const m=$('#es-m');
      await salvarLavouras(p,lavouras(p).map(x=>x.id===lid?{...x,estadio_obs:v,estadio_data:$('#es-d').value||today(),condicao:$('#es-c').value||x.condicao||null,manejo:m?m.value:x.manejo||null}:x));toast('Estádio atualizado')});
+  const esp=e.f&&e.f.fase;
+  $$('.cg[data-for="es-e"] .cb').forEach(b=>{if(esp&&norm(b.dataset.cv)===norm(esp)){b.classList.add('esp');b.title='Esperado pelo calendário'}if(l.estadio_obs&&norm(b.dataset.cv)===norm(l.estadio_obs)){b.classList.add('ult');b.title=(b.title?b.title+' · ':'')+'Último registro'+(l.estadio_data?' em '+fmtBR(l.estadio_data):'')}});
+  const cg=$('.cg[data-for="es-e"]');if(cg)cg.insertAdjacentHTML('beforebegin',`<div class="est-leg">${esp?'<span class="l-esp">esperado pelo calendário</span>':''}${l.estadio_obs?'<span class="l-ult">último registro</span>':''}</div>`);
   vozNotaPanel();
+}
+function avulsaForm(){
+  const C=CAL(),ex=S.avulsos||[];
+  openPanel('Recomendação avulsa',`<p class="full muted sm">Para produtor fora da sua carteira. Ele não entra na carteira, nos indicadores nem na agenda; fica em Recomendações avulsas. Se virar cliente, é só incluir na carteira depois.</p>
+   <label class="full" for="av-n">Nome do produtor<input type="text" id="av-n" list="dl-avulsos" required autocomplete="off" placeholder="Ex.: João da Serra"></label>
+   <datalist id="dl-avulsos">${ex.map(p=>`<option value="${esc(p.nome)}"></option>`).join('')}</datalist>
+   <label for="av-t">Telefone (opcional)<input type="tel" id="av-t" inputmode="tel" placeholder="(35) 9 9999-0000"></label>
+   <label for="av-m">Município (opcional)<input type="text" id="av-m"></label>
+   <div class="full"><div class="fl">Cultura</div>${chips(Object.entries(C).map(([k,d])=>[k,d.nome]),'',{forId:'av-c',hid:true})}</div>
+   <label for="av-a">Área a tratar (ha)<input type="text" inputmode="decimal" id="av-a" placeholder="Ex.: 10"><span class="hint">Usada para calcular as quantidades totais.</span></label>
+   <div class="acts"><button class="btn pri" type="submit">Continuar para os produtos</button></div>`,
+   async()=>{const nome=$('#av-n').value.trim();if(!nome){toast('Informe o nome do produtor.');return false}
+     const k=$('#av-c').value,area=num($('#av-a').value),tel=$('#av-t').value.trim(),mun=$('#av-m').value.trim(),now=new Date().toISOString();
+     const p=ex.find(x=>norm(x.nome)===norm(nome));let pid,lid=null;
+     if(p){pid=p.id;const lavs=lavouras(p).map(x=>{const c={...x};delete c._derivada;return c});let l=k?lavs.find(x=>cultKey(x.cultura)===k):lavs[0];
+       if(k&&!l){l={id:rid('l'),cultura:C[k].nome,area_ha:area||null};lavs.push(l)}else if(l&&area)l.area_ha=area;
+       lid=l?l.id:null;const upd={lavouras:lavs,updatedAt:now};if(tel)upd.telefone=tel;if(mun)upd.municipio=mun;await LDB.doc('produtores/'+pid).update(upd)}
+     else{const ref=LDB.collection('produtores').doc();pid=ref.id;const l=k?{id:rid('l'),cultura:C[k].nome,area_ha:area||null}:null;lid=l?l.id:null;
+       await ref.set(clean({nome,telefone:tel||undefined,municipio:mun||undefined,avulso:true,lavouras:l?[l]:[],criadoEm:now}))}
+     setTimeout(()=>recForm(pid,{data_prevista:today(),lavouraId:lid}),60)});
+  $('#av-n').oninput=()=>{const p=ex.find(x=>norm(x.nome)===norm($('#av-n').value));if(!p)return;if(!$('#av-t').value&&p.telefone)$('#av-t').value=p.telefone;if(!$('#av-m').value&&p.municipio)$('#av-m').value=p.municipio;const l=lavouras(p)[0];if(l&&!$('#av-c').value)setV('av-c',cultKey(l.cultura));if(l&&!$('#av-a').value&&l.area_ha)$('#av-a').value=numBR(l.area_ha)};
+}
+function vAvulsas(){
+  const ult=p=>(recsDe(p.id)[0]||{}).data_rec||p.criadoEm||'';const av=(S.avulsos||[]).slice().sort((a,b)=>ult(b).localeCompare(ult(a)));
+  $('#view').innerHTML=`<div class="sec-h"><h1>${ic('file',22)}Recomendações avulsas</h1><button class="btn pri w" data-act="avulsa-nova">${ic('plus',16)}Nova avulsa</button></div>
+   <p class="muted" style="margin-bottom:14px;max-width:80ch">Produtores fora da carteira que receberam recomendação. Não entram nos indicadores, na matriz nem na agenda; as vendas registradas entram no painel comercial.</p>
+   ${av.length?`<div class="list">${av.map(p=>{const rs=recsDe(p.id);const u=rs[0];return `<div class="row"><a class="who" href="#p-${esc(p.id)}--recomendacoes"><div class="nm">${esc(p.nome)}</div><div class="sub">${esc([p.municipio,p.telefone,plural(rs.length,'recomendação','recomendações'),u&&u.data_rec?'última em '+fmtBR(u.data_rec):null].filter(Boolean).join(' · '))}</div><div class="chips">${lavouras(p).map(estChip).join('')}</div></a>
+     <div class="acts"><button class="btn sm pri w" data-act="rec-nova" data-pid="${esc(p.id)}">${ic('plus',14)}Recomendar</button>${rs.length?`<button class="btn sm leaf w" data-act="recs-enviar" data-pid="${esc(p.id)}">${ic('msg',14)}Enviar</button>`:''}<button class="btn sm ghost w" data-act="avulso-incluir" data-pid="${esc(p.id)}">Incluir na carteira</button></div></div>`}).join('')}</div>`
+   :`<div class="list"><div class="empty"><h3>Nenhuma recomendação avulsa ainda</h3><p>Atendeu alguém fora da carteira? Faça a recomendação aqui sem cadastrar o produtor completo.</p><div class="row-btns w"><button class="btn pri" data-act="avulsa-nova">${ic('plus',16)}Nova avulsa</button></div></div></div>`}`;
 }
 function quickEst(pid){const p=S.prods.get(pid);const ls=p?lavouras(p):[];if(!ls.length){toast('Cadastre uma lavoura em Culturas.');return}if(ls.length===1){estForm(pid,ls[0].id);return}
   openPanel('Estádio: qual lavoura?',`<div class="full big-list">${ls.map(l=>`<button type="button" class="pk" data-act="est" data-pid="${esc(pid)}" data-id="${esc(l.id)}">${badge(l)}<span><b>${esc(lavNome(l))}</b><small>${esc([l.area_ha?nfmt(l.area_ha)+' ha':null,faseTexto(l)].filter(Boolean).join(' · '))}</small></span></button>`).join('')}</div>`,null)}
@@ -2206,10 +2345,10 @@ const QK={relatorio:['file','Relatório de visita','Lavouras, recomendações, f
 function quickForm(){
   const cur=S.route.v==='produtor'&&!S.qkOutro?S.prods.get(S.route.id):null;S.qkOutro=false;
   const pr=S.vozFila.filter(i=>i.status==='pronto').length;
-  openPanel('Registrar',`${vozOn()?`<button type="button" class="full btn mic big" data-act="voz" data-alvo="auto" ${cur?`data-pid="${esc(cur.id)}"`:''} style="min-height:64px;font-size:1.05rem">${ic('mic',24)}Falar: o app entende e preenche</button>${pr?`<a class="full pk" href="#hoje">${ic('mic',22)}<span><b>${plural(pr,'áudio pronto','áudios prontos')} para revisar</b><small>Em Hoje</small></span></a>`:''}`:''}${cur?`<div class="full pk-for"><span>Para <b>${esc(cur.nome)}</b></span><button type="button" class="btn sm ghost" data-act="qk-outro">Outro produtor</button></div>`:''}<div class="full big-list">${Object.entries(QK).map(([k,[i,tt,d]])=>`<button type="button" class="pk" data-act="${cur?'qk-go':'qk'}" data-k="${k}" ${cur?`data-pid="${esc(cur.id)}"`:''}>${ic(i,24)}<span><b>${tt}</b><small>${d}</small></span></button>`).join('')}</div>`,null)}
+  openPanel('Registrar',`${vozOn()?`<button type="button" class="full btn mic big" data-act="voz" data-alvo="auto" ${cur?`data-pid="${esc(cur.id)}"`:''} style="min-height:64px;font-size:1.05rem">${ic('mic',24)}Falar: o app entende e preenche</button>${pr?`<a class="full pk" href="#hoje">${ic('mic',22)}<span><b>${plural(pr,'áudio pronto','áudios prontos')} para revisar</b><small>Em Hoje</small></span></a>`:''}`:''}${cur?`<div class="full pk-for"><span>Para <b>${esc(cur.nome)}</b></span><button type="button" class="btn sm ghost" data-act="qk-outro">Outro produtor</button></div>`:''}<div class="full big-list">${Object.entries(QK).filter(([k])=>k!=='voz').map(([k,[i,tt,d]])=>`<button type="button" class="pk" data-act="${k==='avulsa'?'avulsa-nova':cur?'qk-go':'qk'}" data-k="${k}" ${cur&&k!=='avulsa'?`data-pid="${esc(cur.id)}"`:''}>${ic(i,24)}<span><b>${tt}</b><small>${d}</small></span></button>`).join('')}</div>`,null)}
 function pickProd(k){
   const hoje=[...new Set(agendaItens().filter(i=>!i.feito&&i.data<=today()).map(i=>i.pid))];
-  openPanel(QK[k][1]+': qual produtor?',`<div class="full qsearch" style="margin:0">${ic('busca',20)}<input type="search" id="pk-q" placeholder="Nome, apelido ou município" autocomplete="off" aria-label="Buscar produtor"></div><div class="full big-list" id="pk-l"></div>`,null);
+  openPanel(QK[k][1]+': qual produtor?',`<div class="full qsearch" style="margin:0">${ic('busca',20)}<input type="search" id="pk-q" placeholder="Nome, apelido ou município" autocomplete="off" aria-label="Buscar produtor"></div>${k==='rec'?`<button type="button" class="full pk" data-act="avulsa-nova">${ic('file',22)}<span><b>Produtor fora da carteira</b><small>Recomendação avulsa, sem cadastro completo</small></span></button>`:''}<div class="full big-list" id="pk-l"></div>`,null);
   const draw=()=>{const q=norm($('#pk-q').value);let ps=[...S.prods.values()];
     if(q)ps=ps.filter(p=>norm([p.nome,p.apelido,p.propriedade,fzNomes(p),p.municipio,p.codigo].join(' ')).includes(q));
     ps.sort((a,b)=>(hoje.includes(b.id)-hoje.includes(a.id))||a.nome.localeCompare(b.nome,'pt'));
@@ -2218,7 +2357,7 @@ function pickProd(k){
 }
 function quickDo(k,pid){closePanel();if(k==='voz'){const v=S.vozPend;S.vozPend=null;if(v)vozAplicar(v.d,v.texto,{...v.ctx,pid});return}if(k==='relatorio')go('p-'+pid+'--relatorio');else if(k==='estadio')quickEst(pid);else if(k==='rec')recForm(pid,{data_prevista:today()});else lembForm({produtorId:pid,tipo:'Visita'})}
 function maisForm(){
-  const it=[['comercial','comercial','Comercial','Painel do mês, oportunidades e matriz'],['produtos','produtos','Produtos','Catálogo que você recomenda'],['safra','safra','Calendário','Fases, janelas, pragas e doenças por cultura'],['importar','importar','Atualizar base','Planilha da cooperativa'],['ajustes','ajustes','Ajustes','Metas, custos e seus dados']];
+  const it=[['avulsas','file','Recomendações avulsas','Produtores fora da carteira'],['comercial','comercial','Comercial','Painel do mês, oportunidades e matriz'],['produtos','produtos','Produtos','Catálogo que você recomenda'],['safra','safra','Calendário','Fases, janelas, pragas e doenças por cultura'],['importar','importar','Atualizar base','Planilha da cooperativa'],['ajustes','ajustes','Ajustes','Metas, custos e seus dados']];
   openPanel('Mais',`<div class="full big-list">${it.map(([h,i,tt,d])=>`<a class="pk" href="#${h}">${ic(i,24)}<span><b>${tt}</b><small>${d}</small></span></a>`).join('')}<button type="button" class="pk" data-act="net">${ic('sync',24)}<span><b>Sincronização</b><small>${esc($('#net').textContent||'')}</small></span></button></div>`,null)}
 function maqForm(pid,mid){
   const p=S.prods.get(pid);if(!p)return;const ms=p.maquinas||[];const m=ms.find(x=>x.id===mid)||{};const ed=!!m.id;
@@ -2290,7 +2429,7 @@ const VOZ_DICA={auto:'Diga o produtor e o que aconteceu. Ex.: "Visitei o Zé do 
  lembrete:'Diga o que fazer e quando. Ex.: "Lembrar de ver o ponto de colheita do milho da Várzea na terça."',
  estadio:'Diga a lavoura, o estádio e a condição. Ex.: "Café do Bloco A no chumbinho, condição boa."',
  ficha:'Diga o que soube dele. Ex.: "Aniversário 12 de março, o filho Marcos vai assumir a fazenda, gosta de pescar."'};
-QK.voz=['mic','Áudio','O que você falou vai para este produtor'];
+QK.voz=['mic','Áudio','O que você falou vai para este produtor'];QK.avulsa=['file','Recomendação avulsa','Produtor fora da carteira, sem cadastro completo'];
 S.vozFila=[];S.vozBusy=false;
 const vozOn=()=>!!S.voz;
 function micBtn(alvo,pid,o={}){return vozOn()?`<button type="button" class="btn mic ${o.big?'big':''} ${o.full?'full':''}" data-act="voz" data-alvo="${alvo}" ${pid?`data-pid="${esc(pid)}"`:''} ${o.lid?`data-lid="${esc(o.lid)}"`:''} ${o.dentro?'data-dentro="1"':''}>${ic('mic',18)}${esc(o.lbl||'Preencher por áudio')}</button>`:''}
@@ -2681,6 +2820,8 @@ document.addEventListener('click',async ev=>{
     case 'lav-del':if(twice('lv'+id,'Toque de novo para remover a lavoura')){const p=S.prods.get(pid);await salvarLavouras(p,lavouras(p).filter(l=>l.id!==id));closePanel();toast('Lavoura removida');if(S.route.sub==='lavoura')go('p-'+pid+'--culturas')}break;
     case 'est':estForm(pid,id);break;
     case 'quick-est':quickEst(pid);break;
+    case 'avulsa-nova':avulsaForm();break;
+    case 'avulso-incluir':{if(!twice('ai'+pid))break;const p=S.prods.get(pid);if(!p)break;await LDB.doc('produtores/'+pid).update({avulso:false,updatedAt:new Date().toISOString()});toast(p.nome+' agora está na carteira');go('p-'+pid);break}
     case 'voz':{const inP=!!t.closest('#panel');const ctx={alvo:t.dataset.alvo||'auto',pid:pid||(inP&&$('#l-p')?$('#l-p').value:'')||null,lid:t.dataset.lid||null,dentro:!!t.dataset.dentro};if(inP&&!ctx.dentro)closePanel();vozIniciar(ctx);break}
     case 'voz-stop':vozParar();break;
     case 'voz-cancel':vozCancelar();break;
@@ -2703,6 +2844,7 @@ document.addEventListener('click',async ev=>{
     case 'prod-novo':prodForm();break;
     case 'prod-edit':prodForm(id);break;
     case 'prod-del':if(twice('pd'+id)){await LDB.doc('produtos/'+id).delete();closePanel();toast('Produto excluído')}break;
+    case 'cal-sel':S.calSel=t.dataset.k;vSafra();break;
     case 'cal-nova':calForm(null);break;
     case 'cal-edit':calForm(t.dataset.k);break;
     case 'cal-reset':if(twice('cr'+t.dataset.k,'Toque de novo para restaurar o padrão')){await LDB.doc('config/calendarios').set({culturas:{...CAL(),[t.dataset.k]:DEF_CAL[t.dataset.k]}});closePanel();toast('Calendário restaurado')}break;
@@ -2739,9 +2881,12 @@ function applyOp(m,o){
   else if(o.op==='foto'&&o.assetId){const c=m.get(o.id);if(c)m.set(o.id,{...c,fotos:(c.fotos||[]).map(f=>f.pend===o.key?{id:o.assetId,legenda:f.legenda||'',lavouraId:f.lavouraId||null}:f)})}
 }
 function rebuild(col){const m=new Map(S.base[col]||[]);S.outbox.filter(o=>o.col===col).forEach(o=>applyOp(m,o));S.view[col]=m}
+/* a carteira: percorrer (values, forEach, size) só traz produtores da carteira; buscar por código (get, has) acha também os avulsos */
+class Carteira extends Map{constructor(todos){super();this.todos=todos;todos.forEach((v,k)=>{if(!v.avulso)Map.prototype.set.call(this,k,v)})}get(k){return this.todos.get(k)}has(k){return this.todos.has(k)}}
+const ehAvulso=pid=>{const p=S.prods&&S.prods.get(pid);return !!(p&&p.avulso)};
 function derive(){
   const V=c=>S.view[c]||new Map();
-  S.prods=V('produtores');S.prods.forEach(p=>{const fs=Array.isArray(p.fazendas)?p.fazendas:[];if(fs.length>1&&Array.isArray(p.lavouras))p.lavouras.forEach(l=>{const f=fs.find(x=>x.id===l.fazendaId)||fs[0];try{Object.defineProperty(l,'_fz',{value:f.nome,enumerable:false,configurable:true,writable:true})}catch(e){}})});S.atend=[...V('atendimentos').values()];S.recs=[...V('recomendacoes').values()];S.lemb=[...V('lembretes').values()];S.produtos=[...V('produtos').values()];
+  const todos=V('produtores');S.prods=new Carteira(todos);S.avulsos=[...todos.values()].filter(p=>p.avulso);todos.forEach(p=>{const fs=Array.isArray(p.fazendas)?p.fazendas:[];if(fs.length>1&&Array.isArray(p.lavouras))p.lavouras.forEach(l=>{const f=fs.find(x=>x.id===l.fazendaId)||fs[0];try{Object.defineProperty(l,'_fz',{value:f.nome,enumerable:false,configurable:true,writable:true})}catch(e){}})});S.atend=[...V('atendimentos').values()];S.recs=[...V('recomendacoes').values()];S.lemb=[...V('lembretes').values()];S.produtos=[...V('produtos').values()];
   const cf=V('config');S.cfgDoc=cf.get('geral')||null;S.calDoc=cf.get('calendarios')||null;S._cfg=S._cal=null;S._k=null;S._uso=null;
   const dl=$('#dl-prod');if(dl)dl.innerHTML=S.produtos.filter(p=>p.ativo!==false).map(p=>`<option value="${esc(p.nome)}">${esc([p.categoria,p.dose_padrao?p.dose_padrao+' '+(p.dose_unidade||''):''].filter(Boolean).join(' · '))}</option>`).join('');
 }
